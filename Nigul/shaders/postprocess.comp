@@ -1,0 +1,51 @@
+#version 460
+
+layout(local_size_x = 10, local_size_y = 10) in;
+
+layout(binding = 0, rgba32f) uniform image2D inputImage;
+layout(binding = 1, std430) buffer OutputBuffer {
+    uint totalLuminance;
+    uint minLuminance;
+} outputBuffer;
+
+shared float sharedLuminance[100];
+shared float sharedMinLuminance[100];
+
+void main() {
+    ivec2 startCoords = ivec2(gl_WorkGroupID.xy * gl_WorkGroupSize.xy);
+    ivec2 endCoords = startCoords + ivec2(gl_WorkGroupSize.xy);
+    ivec2 imageSize = imageSize(inputImage);
+
+    float localLuminance = 0.0;
+    float localMinLuminance = 1.0;
+
+    for (int y = startCoords.y; y < endCoords.y; ++y) {
+        for (int x = startCoords.x; x < endCoords.x; ++x) {
+            ivec2 pixelCoords = ivec2(x, y);
+            if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) {
+                continue;
+            }
+
+            vec4 pixel = imageLoad(inputImage, pixelCoords);
+            float luminance = 0.2126 * pixel.r + 0.7152 * pixel.g + 0.0722 * pixel.b;
+            localLuminance += luminance;
+            localMinLuminance = min(localMinLuminance, luminance);
+        }
+    }
+
+    uint localId = gl_LocalInvocationIndex;
+    sharedLuminance[localId] = localLuminance;
+    sharedMinLuminance[localId] = localMinLuminance;
+
+    barrier();
+
+    if (localId == 0) {
+        for (int i = 1; i < 100; ++i) {
+            sharedLuminance[0] += sharedLuminance[i];
+            sharedMinLuminance[0] = min(sharedMinLuminance[0], sharedMinLuminance[i]);
+        }
+
+        atomicAdd(outputBuffer.totalLuminance, uint(sharedLuminance[0]));
+        atomicMin(outputBuffer.minLuminance, uint(sharedMinLuminance[0]));
+    }
+}
