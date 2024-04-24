@@ -37,7 +37,7 @@ public:
     void createFrame();
     void destroy();
     void input();
-    void editTransform(const Camera& camera, glm::f32* matrix);
+    bool editTransform(const Camera& camera, glm::f32* matrix);
 
     bool isMouseAvaliable();
 };

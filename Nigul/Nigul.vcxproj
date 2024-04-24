@@ -156,7 +156,9 @@
     <ClCompile Include="dependencies\include\imgui\imgui_impl_opengl3.cpp" />
     <ClCompile Include="dependencies\include\imgui\imgui_tables.cpp" />
     <ClCompile Include="dependencies\include\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="source\application.cpp" />
     <ClCompile Include="source\FBO.cpp" />
+    <ClCompile Include="source\light.cpp" />
     <ClCompile Include="source\quad.cpp" />
     <ClCompile Include="source\skybox.cpp" />
     <ClCompile Include="source\GUI.cpp" />
@@ -188,7 +190,9 @@
     <ClInclude Include="dependencies\include\imgui\imstb_truetype.h" />
     <ClInclude Include="dependencies\include\json\json.h" />
     <ClInclude Include="dependencies\include\tinyGLTF\tinyGLTF.h" />
+    <ClInclude Include="source\application.h" />
     <ClInclude Include="source\FBO.h" />
+    <ClInclude Include="source\light.h" />
     <ClInclude Include="source\quad.h" />
     <ClInclude Include="source\skybox.h" />
     <ClInclude Include="source\material.h" />

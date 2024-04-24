@@ -32,6 +32,13 @@ public:
     std::string modelPath;
     std::string skyboxPath;
 
+    bool firstClick = true;
+
+    float speed = 0.1f;
+    float sensitivity = 0.01f;
+    double axisX = 600;
+    double axisY = 600;
+
     Scene();
 
     // Method to pass scene properties to the shader
@@ -45,7 +52,12 @@ public:
 
     // Method to save the scene to a JSON file
     void saveScene();
+
+    // Method to load the scene from a JSON file
     void loadScene();
+
+    // Input method
+    void processInput(GLFWwindow* window);
 
     // Helper method to serialize scene properties to JSON
     json serializeSceneProperties();

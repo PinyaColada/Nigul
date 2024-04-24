@@ -133,13 +133,14 @@ Skybox::Skybox(const std::string& folderPath, int slot)
  void Skybox::draw(Camera* camera, Shader* shader)
 {
 	shader->Activate();
+
 	glDepthFunc(GL_LEQUAL);
 	glBindVertexArray(VAO);
 
 	glm::mat4 view = glm::mat4(glm::mat3(camera->viewMatrix));
-	glUniformMatrix4fv(glGetUniformLocation(shader->ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
-	glUniformMatrix4fv(glGetUniformLocation(shader->ID, "projection"), 1, GL_FALSE, glm::value_ptr(camera->projectionMatrix));
 
+	shader->setMat4("view", view);
+	shader->setMat4("projection", camera->projectionMatrix);
 	shader->setCubemap("skybox", cubemapTexture, slot);
 
 	glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);

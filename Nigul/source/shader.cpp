@@ -125,21 +125,6 @@ void Shader::compileErrors(unsigned int shader, const char* type)
 	}
 }
 
-void Shader::setBool(const std::string& name, bool value) const
-{
-	glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
-}
-
-void Shader::setInt(const std::string& name, int value) const
-{
-	glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
-}
-
-void Shader::setFloat(const std::string& name, float value) const
-{
-	glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
-}
-
 void Shader::setVec2(const std::string& name, const glm::vec2& value) const
 {
 	glUniform2fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
@@ -158,6 +143,56 @@ void Shader::setVec4(const std::string& name, const glm::vec4& value) const
 void Shader::setMat4(const std::string& name, const glm::mat4& mat) const
 {
 	glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, &mat[0][0]);
+}
+
+void Shader::setBool(const std::string& name, bool value) const
+{
+	glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
+}
+
+void Shader::setInt(const std::string& name, int value) const
+{
+	glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
+}
+
+void Shader::setFloat(const std::string& name, float value) const
+{
+	glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+}
+
+void Shader::setSizeT(const std::string& name, size_t value) const
+{
+	glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
+}
+
+void Shader::setInts(const std::string& name, const int* values, int count) const
+{
+	glUniform1iv(glGetUniformLocation(ID, name.c_str()), count, values);
+}
+
+void Shader::setFloats(const std::string& name, const float* values, int count) const
+{
+	glUniform1fv(glGetUniformLocation(ID, name.c_str()), count, values);
+}
+
+void Shader::setVecs2(const std::string& name, const glm::vec2* values, int count) const
+{
+	glUniform2fv(glGetUniformLocation(ID, name.c_str()), count, &values[0][0]);
+}
+
+void Shader::setVecs3(const std::string& name, const glm::vec3* values, int count) const
+{
+	glUniform3fv(glGetUniformLocation(ID, name.c_str()), count, &values[0][0]);
+}
+
+void Shader::setVecs4(const std::string& name, const glm::vec4* values, int count) const
+{
+	glUniform4fv(glGetUniformLocation(ID, name.c_str()), count, &values[0][0]);
+}
+
+void Shader::setMats4(const std::string& name, const glm::mat4* mats, int count) const
+{
+	glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), count, GL_FALSE, &mats[0][0][0]);
 }
 
 void Shader::setCubemap(const std::string& name, GLuint texture, GLuint slot) const

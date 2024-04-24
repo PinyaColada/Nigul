@@ -89,6 +89,78 @@ void Scene::passSceneProperties()
     }
 }
 
+void Scene::processInput(GLFWwindow* window)
+{
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+        Node* cameraNode = model->getNodeByID(model->mainCameraId);
+        glm::mat4 cameraMatrix = cameraNode->matrix;
+
+        // Get the position and rotation
+        glm::vec3 position = glm::vec3(cameraMatrix[3]);
+        glm::quat rotation = glm::quat_cast(cameraMatrix);
+        glm::vec3 orientation = glm::vec3(cameraMatrix[0][2], cameraMatrix[1][2], cameraMatrix[2][2]);
+        glm::vec3 up = glm::vec3(1.0f, 0.0f, 0.0f);
+
+        // Handles key inputs
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+            position += speed * glm::vec3(rotation * glm::vec4(0, 0, -1, 0));
+        }
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+            position -= speed * glm::vec3(rotation * glm::vec4(0, 0, -1, 0));
+        }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+            position += speed * glm::vec3(rotation * glm::vec4(-1, 0, 0, 0));
+        }
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+            position -= speed * glm::vec3(rotation * glm::vec4(-1, 0, 0, 0));
+        }
+        if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+			position += speed * glm::vec3(rotation * glm::vec4(0, 1, 0, 0));
+		}
+        if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+            position -= speed * glm::vec3(rotation * glm::vec4(0, 1, 0, 0));
+        }
+
+        if (firstClick) {
+            // Fetches the coordinates of the cursor
+            glfwGetCursorPos(window, &axisX, &axisY);
+            firstClick = false;
+        }
+
+        // Stores the coordinates of the cursor
+        double mouseX;
+        double mouseY;
+        // Fetches the coordinates of the cursor
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+
+        // Normalizes and shifts the coordinates of the cursor such that they begin in the middle of the screen
+        // and then "transforms" them into degrees 
+        float yaw = sensitivity * (float)(mouseY - axisY);
+        float pitch = sensitivity * (float)(mouseX - axisX);
+
+        glm::quat pitchQuad = glm::rotate(rotation, glm::radians(-pitch), glm::normalize(glm::cross(orientation, up)));
+        if (glm::angle(up * pitchQuad, up) < glm::radians(85.0f)) {
+            rotation = pitchQuad;
+        }
+
+        glm::quat yawQuad = glm::rotate(rotation, glm::radians(-yaw), up);
+        if (glm::angle(orientation * yawQuad, orientation) < glm::radians(85.0f)) {
+			rotation = yawQuad;
+		}
+
+        glfwSetCursorPos(window, axisX, axisY);
+
+        // Apply to the camera matrix
+        cameraNode->matrix = glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation);
+
+    } else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		firstClick = true;
+	}
+}
+
 void Scene::drawScene()
 {
     if (skyboxes[mainSkybox]) {

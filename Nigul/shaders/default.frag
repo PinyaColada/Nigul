@@ -58,6 +58,7 @@ uniform vec3 lightPositions[MAX_LIGHTS];
 uniform vec3 lightDirections[MAX_LIGHTS];
 uniform float lightIntensities[MAX_LIGHTS];
 uniform float lightRanges[MAX_LIGHTS];
+uniform float lightAttenuations[MAX_LIGHTS];
 uniform float lightInnerConeAngles[MAX_LIGHTS];
 uniform float lightOuterConeAngles[MAX_LIGHTS];
 uniform sampler2D lightShadowMapSamples[MAX_LIGHTS];
@@ -190,7 +191,7 @@ vec3 pointLight(int index, vec4 baseColor)
 {	
 	// intensity of light with respect to distance
 	float dist = length(lightPositions[index] - crntPos);
-	float inten = 1.0f / (lightRanges[index] * dist * dist + 1.0f);
+	float inten = 1.0f / (lightAttenuations[index] * dist * dist + 1.0f);
 
 	// PBR values
 	baseColor *= baseColorFactor;
@@ -225,7 +226,7 @@ vec3 pointLight(int index, vec4 baseColor)
 
 	// final light color
 	vec3 light = (diffuse + specular) * lightParams;
-	return specular;
+	return light;
 }
 
 vec3 directLight(int index, vec4 baseColor)

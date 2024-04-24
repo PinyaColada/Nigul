@@ -33,7 +33,7 @@ void Mesh::Draw(Shader* shader, Camera* camera, glm::mat4 matrix)
 		material->bind(shader);
 
 	if (camera) {
-		shader->setVec3("camPos", camera->position);
+		shader->setVec3("camPos", camera->getPosition());
 		shader->setMat4("camMatrix", camera->cameraMatrix);
 	}
 

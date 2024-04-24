@@ -12,20 +12,6 @@
 
 tinygltf::Model model;
 
-Light::Light() {
-	color = glm::vec3(1.0f, 1.0f, 1.0f);
-	intensity = 1.0;
-	type = LIGHT_TYPE::POINTLIGHT;
-	range = 3.0;
-	innerConeAngle = 0.9;
-	outerConeAngle = 0.95;
-}
-
-Node::Node() {
-	name = "Root";
-	id = 0;
-}
-
 Node::Node(int id, glm::mat4 matrix, glm::mat4 globalMatrix, Node* parent, std::string name):
 	matrix(matrix), globalMatrix(globalMatrix), parent(parent), name(name), id(id)
 {}
@@ -38,10 +24,10 @@ void Node::addChild(std::unique_ptr<Node> child){
 }
 
 void Node::rewriteMatrix(){
-	if (parent)
-		this->matrix = glm::inverse(parent->globalMatrix) * this->globalMatrix;
-	else
-		this->matrix = this->globalMatrix;
+	if (!parent)
+		return;
+
+	this->matrix = glm::inverse(parent->globalMatrix) * this->globalMatrix;
 }
 
 bool Node::isLeaf() const
@@ -107,8 +93,9 @@ void Model::Draw(Shader* shader, Camera* camera)
 			// If the transparency is the same, we need to know the distance to the camera
 			glm::vec3 aPos = a.globalMatrix[3];
 			glm::vec3 bPos = b.globalMatrix[3];
-			float aDist = glm::length(aPos - camera->position);
-			float bDist = glm::length(bPos - camera->position);
+			glm::vec3 cameraPos = camera->getPosition();
+			float aDist = glm::length(aPos - cameraPos);
+			float bDist = glm::length(bPos - cameraPos);
 
 			// If the object is opaque, we render first the closest object
 			if (a.mesh->material->alphaMode == OPAQUE) {
@@ -131,14 +118,22 @@ void Model::updateTree(Node& node, Shader& shader, glm::mat4 parentMatrix)
 	node.globalMatrix = parentMatrix * node.matrix;
 
 	// Draw the mesh of the current node
-	if (node.mesh != nullptr) {
+	if (node.mesh) {
 		if (skipTransparent == false || (skipTransparent == true && node.mesh->material->alphaMode == OPAQUE_MODE)) {
 			drawCalls.push_back(DrawCall{ node.mesh, &shader, node.globalMatrix });
 		}
 	}
 
-	if (node.light != nullptr) {
-		node.light->position = glm::vec3(node.globalMatrix[3]);
+	// Update light
+	if (node.light) {
+		node.light->updatePosition(node.globalMatrix);
+		node.hasChanged = false;
+	}
+
+	// Update camera
+	if (node.camera) {
+		node.camera->updateView(node.globalMatrix);
+		node.camera->updateMatrix();
 	}
 
 	// Recursively draw all children
@@ -202,6 +197,7 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 parentMatrix, Node* pa
 	const tinygltf::Node& node = model.nodes[nextNode];
 	// Directly access the name or default to "Node"
 	std::string nameNode = node.name.empty() ? "Node" : node.name;
+	std::cout << node.name << std::endl;
 
 	// Initialize the node's transformation matrix
 	glm::mat4 nodeMatrix = glm::mat4(1.0f);
@@ -217,7 +213,7 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 parentMatrix, Node* pa
 		}
 		if (!node.rotation.empty()) {
 			glm::quat rotation = glm::make_quat(node.rotation.data());
-			nodeMatrix *= glm::mat4_cast(rotation);
+			nodeMatrix *= glm::mat4_cast(-rotation);
 		}
 		if (!node.scale.empty()) {
 			glm::vec3 scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
@@ -237,15 +233,14 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 parentMatrix, Node* pa
 
 	if (node.light != -1) {
 		Light* newLight = lodLight[node.light].get(); 
-		newLight->position = glm::vec3(newNode->globalMatrix[3]);
-		newLight->direction = glm::normalize(-glm::vec3(newNode->globalMatrix[0][2], newNode->globalMatrix[1][2], newNode->globalMatrix[2][2]));
 		newNode->light = newLight;
 	}
 
 	if (node.camera != -1 || node.name == "Camera") {
+		std::cout << "Camera found" << std::endl;
 		int indexOfCamera = node.camera;
 		if (lodCamera.size() == 0) {
-			lodCamera.push_back(std::make_unique<Camera>());
+			lodCamera.push_back(std::make_unique<PerspectiveCamera>());
 			indexOfCamera = lodCamera.size() - 1;
 		}
 		Camera* newCamera = lodCamera[indexOfCamera].get();
@@ -253,8 +248,9 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 parentMatrix, Node* pa
 		if (node.camera == 0 || node.name == "Camera")
 			mainCameraId = numNodes;
 
-		newCamera->position = glm::vec3(newNode->globalMatrix[3]);
-		newCamera->orientation = glm::rotate(glm::quat_cast(newNode->globalMatrix), glm::vec3(0.0f, -1.0f, 0.0f));
+		newCamera->updateView(newNode->globalMatrix);
+		newCamera->updateProjection();
+		newCamera->updateMatrix();
 		newNode->camera = newCamera;
 	}
 
@@ -318,24 +314,30 @@ void Model::loadCameras() {
 	lodCamera.reserve(model.cameras.size());
 
 	for (size_t i = 0; i < model.cameras.size(); ++i) {
-		auto camera = std::make_unique<Camera>();
+		std::unique_ptr<Camera> camera;
 
 		if (model.cameras[i].type == "perspective") {
-			camera->type = CameraType::PERSPECTIVE;
-			camera->aspectRatio = model.cameras[i].perspective.aspectRatio;
-			camera->fov = model.cameras[i].perspective.yfov;
-			camera->nearPlane = model.cameras[i].perspective.znear;
-			camera->farPlane = model.cameras[i].perspective.zfar;
+			auto perspectiveCamera = std::make_unique<PerspectiveCamera>();
+			perspectiveCamera->aspectRatio = model.cameras[i].perspective.aspectRatio;
+			perspectiveCamera->fov = model.cameras[i].perspective.yfov;
+			perspectiveCamera->nearPlane = model.cameras[i].perspective.znear;
+			perspectiveCamera->farPlane = model.cameras[i].perspective.zfar;
+			camera = std::move(perspectiveCamera);
 		}
 		else if (model.cameras[i].type == "orthographic") {
-			camera->type = CameraType::ORTHOGRAPHIC;
+			auto orthographicCamera = std::make_unique<OrthographicCamera>();
+			orthographicCamera->size.x = model.cameras[i].orthographic.xmag;
+			orthographicCamera->size.y = model.cameras[i].orthographic.ymag;
+			orthographicCamera->nearPlane = model.cameras[i].orthographic.znear;
+			orthographicCamera->farPlane = model.cameras[i].orthographic.zfar;
+			camera = std::move(orthographicCamera);
 		}
 		else {
 			std::cerr << "Unknown camera type: " << model.cameras[i].type << std::endl;
 			throw std::runtime_error("Unsupported camera type encountered");
 		}
 
-		lodCamera.push_back(std::move(camera)); 
+		lodCamera.push_back(std::move(camera));
 	}
 }
 
@@ -345,28 +347,32 @@ void Model::loadLights()
 	lodLight.reserve(model.lights.size());
 
 	for (size_t i = 0; i < model.lights.size(); ++i) {
-		auto light = std::make_unique<Light>(); // Create a unique_ptr managing a new Light object
-		light->color = glm::vec3(model.lights[i].color[0], model.lights[i].color[1], model.lights[i].color[2]);
-		light->intensity = model.lights[i].intensity;
+		std::unique_ptr<Light> light;
 
 		if (model.lights[i].type == "point") {
-			light->type = LIGHT_TYPE::POINTLIGHT;
-			light->range = model.lights[i].range;
+			auto pointLight = std::make_unique<PointLight>();
+			light = std::move(pointLight);
 		}
 		else if (model.lights[i].type == "spot") {
-			light->type = LIGHT_TYPE::SPOTLIGHT;
-			light->innerConeAngle = model.lights[i].spot.innerConeAngle;
-			light->outerConeAngle = model.lights[i].spot.outerConeAngle;
+			auto spotLight = std::make_unique<SpotLight>();
+			spotLight->innerConeAngle = model.lights[i].spot.innerConeAngle;
+			spotLight->outerConeAngle = model.lights[i].spot.outerConeAngle;
+			spotLight->direction = glm::vec3(0.0f);
+			light = std::move(spotLight);
 		}
 		else if (model.lights[i].type == "directional") {
-			light->type = LIGHT_TYPE::DIRECTIONAL;
+			light = std::make_unique<DirectionalLight>();
 		}
 		else {
 			std::cerr << "Unknown light type: " << model.lights[i].type << std::endl;
 			throw std::runtime_error("Unsupported light type encountered");
 		}
 
-		lodLight.push_back(std::move(light)); // Add the unique_ptr to the vector
+		light->color = glm::vec3(model.lights[i].color[0], model.lights[i].color[1], model.lights[i].color[2]);
+		light->intensity = model.lights[i].intensity;
+		light->range = model.lights[i].range;
+
+		lodLight.push_back(std::move(light));
 	}
 }
 
@@ -633,49 +639,52 @@ void Model::passLightUniforms(Shader* shader)
 {
 	shader->Activate();
 	const int maxLights = 3; 
+	int indexTexture = lodTex.size();
+
 	glm::vec3 lightColors[maxLights];
 	int lightTypes[maxLights];
+	int lightShadowMaps[maxLights];
 	glm::vec3 lightPositions[maxLights];
 	glm::vec3 lightDirections[maxLights];
 	float lightIntensities[maxLights];
-	float lightRange[maxLights];
+	float lightRanges[maxLights];
 	float lightInnerConeAngles[maxLights];
 	float lightOuterConeAngles[maxLights];
 	float lightShadowBiases[maxLights];
+	float lightAttenuations[maxLights];
 	glm::mat4 lightProjectionMatrixes[maxLights];
-
-	int indexTexture = lodTex.size();
-
-	int lightShadowMaps[maxLights] = { indexTexture, indexTexture + 1 , indexTexture + 2};
 
 	for (size_t i = 0; i < lodLight.size() && i < maxLights; i++) {
 		auto light = lodLight[i].get();
 		lightColors[i] = light->color;
-		lightTypes[i] = static_cast<int>(light->type);
+		lightTypes[i] = static_cast<int>(light->getType());
 		lightIntensities[i] = light->intensity;
 		lightPositions[i] = light->position;
-		lightDirections[i] = light->direction;
-		lightRange[i] = light->range;
-		lightInnerConeAngles[i] = light->innerConeAngle;
-		lightOuterConeAngles[i] = light->outerConeAngle;
-		lightProjectionMatrixes[i] = light->lightProjectionMatrix;
-		lightShadowBiases[i] = light->shadowBias;
+		lightRanges[i] = light->range;
+		lightShadowMaps[i] = indexTexture + i;
 		glActiveTexture(GL_TEXTURE0 + lightShadowMaps[i]);
 		glBindTexture(GL_TEXTURE_2D, light->shadowMap->texture);
+		lightShadowBiases[i] = light->shadowBias;
+		lightAttenuations[i] = (dynamic_cast<PointLight*>(light)) ? static_cast<PointLight*>(light)->attenuation : 0.0f;
+		lightDirections[i] = (dynamic_cast<SpotLight*>(light)) ? static_cast<SpotLight*>(light)->direction : glm::vec3(0.0f);
+		lightInnerConeAngles[i] = (dynamic_cast<SpotLight*>(light)) ? static_cast<SpotLight*>(light)->innerConeAngle : 0.0f;
+		lightOuterConeAngles[i] = (dynamic_cast<SpotLight*>(light)) ? static_cast<SpotLight*>(light)->outerConeAngle : 0.0f;
+		lightProjectionMatrixes[i] = (dynamic_cast<DirectionalLight*>(light)) ? static_cast<DirectionalLight*>(light)->camera.cameraMatrix : glm::mat4(1.0f);
 	}
 
-	glUniform1i(glGetUniformLocation(shader->ID, "numLights"), static_cast<int>(lodLight.size()));
-	glUniform3fv(glGetUniformLocation(shader->ID, "lightColors"), maxLights, glm::value_ptr(lightColors[0]));
-	glUniform1iv(glGetUniformLocation(shader->ID, "lightTypes"), maxLights, lightTypes);
-	glUniform1iv(glGetUniformLocation(shader->ID, "lightShadowMapSamples"), maxLights, lightShadowMaps);
-	glUniformMatrix4fv(glGetUniformLocation(shader->ID, "lightProjectionMatrixes"), maxLights, GL_FALSE, glm::value_ptr(lightProjectionMatrixes[0]));
-	glUniform3fv(glGetUniformLocation(shader->ID, "lightPositions"), maxLights, glm::value_ptr(lightPositions[0]));
-	glUniform3fv(glGetUniformLocation(shader->ID, "lightDirections"), maxLights, glm::value_ptr(lightDirections[0]));
-	glUniform1fv(glGetUniformLocation(shader->ID, "lightIntensities"), maxLights, lightIntensities);
-	glUniform1fv(glGetUniformLocation(shader->ID, "lightRanges"), maxLights, lightRange);
-	glUniform1fv(glGetUniformLocation(shader->ID, "lightShadowBiases"), maxLights, lightShadowBiases);
-	glUniform1fv(glGetUniformLocation(shader->ID, "lightInnerConeAngles"), maxLights, lightInnerConeAngles);
-	glUniform1fv(glGetUniformLocation(shader->ID, "lightOuterConeAngles"), maxLights, lightOuterConeAngles);
+	shader->setSizeT("numLights", lodLight.size());
+	shader->setVecs3("lightColors", lightColors, maxLights);
+	shader->setInts("lightTypes", lightTypes, maxLights);
+	shader->setInts("lightShadowMapSamples", lightShadowMaps, maxLights);
+	shader->setMats4("lightProjectionMatrixes", lightProjectionMatrixes, maxLights);
+	shader->setVecs3("lightPositions", lightPositions, maxLights);
+	shader->setVecs3("lightDirections", lightDirections, maxLights);
+	shader->setFloats("lightAttenuations", lightAttenuations, maxLights);
+	shader->setFloats("lightIntensities", lightIntensities, maxLights);
+	shader->setFloats("lightRanges", lightRanges, maxLights);
+	shader->setFloats("lightShadowBiases", lightShadowBiases, maxLights);
+	shader->setFloats("lightInnerConeAngles", lightInnerConeAngles, maxLights);
+	shader->setFloats("lightOuterConeAngles", lightOuterConeAngles, maxLights);
 }
 
 void Model::AddBasicNode() {
@@ -687,16 +696,39 @@ void Model::AddBasicNode() {
 	numNodes++;
 }
 
-void Model::AddLightNode() {
-	Node* newNode = new Node();
-	newNode->name = "Light";
+void Model::AddDirectionalLightNode() {
+	auto newNode = std::make_unique<Node>();
+	newNode->name = "Directional Light";
 	newNode->id = numNodes + 1;
 	newNode->parent = root.get();
-	Light* newLight = new Light();
-	newLight->type = LIGHT_TYPE::DIRECTIONAL;
-	newNode->light = newLight;
-	root->addChild(std::unique_ptr<Node>(newNode));	
-	lodLight.push_back(std::unique_ptr<Light>(newLight));
+	auto newLight = std::make_unique<DirectionalLight>();
+	newNode->light = newLight.get();
+	root->addChild(std::move(newNode));
+	lodLight.push_back(std::move(newLight));
+	numNodes++;
+}
+
+void Model::AddPointLightNode() {
+	auto newNode = std::make_unique<Node>();
+	newNode->name = "Point Light";
+	newNode->id = numNodes + 1;
+	newNode->parent = root.get();
+	auto newLight = std::make_unique<PointLight>();
+	newNode->light = newLight.get();
+	root->addChild(std::move(newNode));
+	lodLight.push_back(std::move(newLight));
+	numNodes++;
+}
+
+void Model::AddSpotLightNode() {
+	auto newNode = std::make_unique<Node>();
+	newNode->name = "Spot Light";
+	newNode->id = numNodes + 1;
+	newNode->parent = root.get();
+	auto newLight = std::make_unique<SpotLight>();
+	newNode->light = newLight.get();
+	root->addChild(std::move(newNode));
+	lodLight.push_back(std::move(newLight));
 	numNodes++;
 }
 
@@ -706,7 +738,10 @@ void Model::AddCameraNode() {
 	newNode->id = numNodes + 1;
 	this->mainCameraId = numNodes + 1;
 	newNode->parent = root.get();
-	Camera* newCamera = new Camera();
+	Camera* newCamera = new PerspectiveCamera();
+	newCamera->updateView(newNode->globalMatrix);
+	newCamera->updateProjection();
+	newCamera->updateMatrix();
 	newNode->camera = newCamera;
 	root->addChild(std::unique_ptr<Node>(newNode));
 	lodCamera.push_back(std::unique_ptr<Camera>(newCamera));
@@ -723,68 +758,28 @@ std::vector<int> Model::filterNodesOfModel(std::function<bool(int node)> func) {
 	return nodesID;
 }
 
-void Model::saveCamera(){
-	std::cout << "saving camera" << std::endl;
-	std::function<bool(int node)> func = [](int nodeID) {
-		return model.nodes[nodeID].camera != -1;
-	};
-	// Use filterNodesOfModel to get the nodes with a camera
-	auto nodesWithCamera = filterNodesOfModel(func);
-
-	if (nodesWithCamera.size() == 0) {
-		std::cerr << "No camera found in the model." << std::endl;
-		return;
-	}
-
-	// Convert the nodes matrix into an std::vector<double>
-	std::vector<double> newMatrix;
-	glm::mat4 mainCameraMatrix(1.0f);
-	mainCameraMatrix[3] = glm::vec4(getNodeByID(mainCameraId)->camera->position, 0.0f);
-	mainCameraMatrix[0][2] = -getNodeByID(mainCameraId)->camera->orientation.x;
-	mainCameraMatrix[1][2] = -getNodeByID(mainCameraId)->camera->orientation.y;
-	mainCameraMatrix[2][2] = -getNodeByID(mainCameraId)->camera->orientation.z;
-
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			newMatrix.push_back(static_cast<double>(mainCameraMatrix[i][j]));
-		}
-	}
-	model.nodes[nodesWithCamera[0]].matrix = newMatrix;
-	
-	// Save the gltf model
-	tinygltf::TinyGLTF loader;
-	std::string err;
-	std::string warn;
-	bool ret = loader.WriteGltfSceneToFile(&model, file, true, true, true, false);
-	if (!ret) {
-		std::cerr << "Failed to save the glTF file." << std::endl;
-	}
-}
-
 void Model::renderShadowMaps(Shader* shader)
 {
 	skipTransparent = true;
 
 	for (auto& light : lodLight) {
-		if (light->castShadows) {
-			glm::mat4 orthgonalProjection = glm::ortho(-light->orthogonalSize, light->orthogonalSize,
-													   -light->orthogonalSize, light->orthogonalSize,
-														light->nearPlane,      light->farPlane);
-			glm::mat4 lightView = glm::lookAt(light->position * 20.0f, light->direction, glm::vec3(0.0f, 1.0f, 0.0f));
-			light->lightProjectionMatrix = orthgonalProjection * lightView;
+		if (light->castShadows && light->getType() == DIRECTIONAL) {
+			DirectionalLight* direct = static_cast<DirectionalLight*>(light.get());
+
+				direct->updateProjection();
 
 			shader->Activate();
-			shader->setMat4("lightProjection", light->lightProjectionMatrix);
+			shader->setMat4("lightProjection", direct->camera.cameraMatrix);
 
 			glEnable(GL_DEPTH_TEST);
 
-			light->shadowMap->Bind();
+			direct->shadowMap->Bind();
 
 			glClear(GL_DEPTH_BUFFER_BIT);
 
 			Draw(shader, nullptr);
 
-			light->shadowMap->Unbind();
+			direct->shadowMap->Unbind();
 		}
 	}
 

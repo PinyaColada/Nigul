@@ -62,9 +62,20 @@ public:
     void setBool(const std::string &name, bool value) const;
     void setInt(const std::string &name, int value) const;
     void setFloat(const std::string &name, float value) const;
+    void setSizeT(const std::string &name, size_t value) const;
+
     void setVec2(const std::string &name, const glm::vec2 &value) const;
     void setVec3(const std::string &name, const glm::vec3 &value) const;
     void setVec4(const std::string &name, const glm::vec4 &value) const;
     void setMat4(const std::string &name, const glm::mat4 &mat) const;
+
+    void setInts(const std::string& name, const int* value, int count = 1) const;
+    void setFloats(const std::string& name, const float* value, int count = 1) const;
+    void setVecs2(const std::string& name, const glm::vec2* value, int count = 1) const;
+    void setVecs3(const std::string& name, const glm::vec3* value, int count = 1) const;
+    void setVecs4(const std::string& name, const glm::vec4* value, int count = 1) const;
+    void setMats4(const std::string& name, const glm::mat4* mat, int count = 1) const;
+
     void setCubemap(const std::string &name, GLuint texture, GLuint slot) const;
+
 };

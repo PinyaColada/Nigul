@@ -30,15 +30,18 @@ void GUI::input() {
 	}
 }
 
-void GUI::editTransform(const Camera& camera, glm::f32* ptr_matrix)
+bool GUI::editTransform(const Camera& camera, glm::f32* ptr_matrix)
 {
+	bool hasChanged = false;
+
 	if (ptr_matrix == nullptr)
-		return;
+		return hasChanged;
 
 	float* matrix = ptr_matrix;
 
 	static ImGuizmo::OPERATION mCurrentGizmoOperation(ImGuizmo::TRANSLATE);
 	static ImGuizmo::MODE mCurrentGizmoMode(ImGuizmo::WORLD);
+
 
 	if (ImGui::RadioButton("Translate", mCurrentGizmoOperation == ImGuizmo::TRANSLATE))
 		mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
@@ -50,9 +53,9 @@ void GUI::editTransform(const Camera& camera, glm::f32* ptr_matrix)
 		mCurrentGizmoOperation = ImGuizmo::SCALE;
 	float matrixTranslation[3], matrixRotation[3], matrixScale[3];
 	ImGuizmo::DecomposeMatrixToComponents(matrix, matrixTranslation, matrixRotation, matrixScale);
-	ImGui::InputFloat3("Tr", matrixTranslation);
-	ImGui::InputFloat3("Rt", matrixRotation);
-	ImGui::InputFloat3("Sc", matrixScale);
+	hasChanged |= ImGui::InputFloat3("Tr", matrixTranslation);
+	hasChanged |= ImGui::InputFloat3("Rt", matrixRotation);
+	hasChanged |= ImGui::InputFloat3("Sc", matrixScale);
 	ImGuizmo::RecomposeMatrixFromComponents(matrixTranslation, matrixRotation, matrixScale, matrix);
 
 	if (mCurrentGizmoOperation != ImGuizmo::SCALE)
@@ -65,7 +68,9 @@ void GUI::editTransform(const Camera& camera, glm::f32* ptr_matrix)
 	}
 	ImGuiIO& io = ImGui::GetIO();
 	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
-	ImGuizmo::Manipulate(glm::value_ptr(camera.viewMatrix), glm::value_ptr(camera.projectionMatrix), mCurrentGizmoOperation, mCurrentGizmoMode, matrix, NULL);
+	hasChanged |= ImGuizmo::Manipulate(glm::value_ptr(camera.viewMatrix), glm::value_ptr(camera.projectionMatrix), mCurrentGizmoOperation, mCurrentGizmoMode, matrix, NULL);
+
+	return hasChanged;
 }
 
 
@@ -136,6 +141,8 @@ void GUI::logic()
 	input();
 	ImGui::Begin("Engine");
 
+	bool hasChanged = false;
+
 	if (ImGui::BeginTabBar("MyTabBar"))
 	{
 		if (ImGui::BeginTabItem("Scene"))
@@ -150,36 +157,44 @@ void GUI::logic()
 					ImGui::SeparatorText("Transform");
 
 					Node* selectedNode = scene->model->getNodeByID(selectedNodeId);
-					editTransform(*scene->camera, glm::value_ptr(selectedNode->globalMatrix));
-					if (ImGuizmo::IsUsing) {
-						selectedNode->rewriteMatrix();
-					}
+					hasChanged |= editTransform(*scene->camera, glm::value_ptr(selectedNode->globalMatrix));
 
 					ImGui::SeparatorText("General");
 					ImGui::InputText("Name", &selectedNode->name[0], 100);
 					ImGui::Text("Id: %d", selectedNode->id);
 
-					if (selectedNode->light != nullptr) {
+					if (selectedNode->light) {
 						ImGui::SeparatorText("Light");
-						ImGui::ColorEdit3("Color", &selectedNode->light->color[0]);
-						ImGui::SliderFloat("Intensity", &selectedNode->light->intensity, 0.0f, 100.0f);
-						const char* lightTypes[] = { "Point", "Spot", "Directional" };
-						ImGui::Combo("Type", (int*)&selectedNode->light->type, lightTypes, IM_ARRAYSIZE(lightTypes));
-						if (selectedNode->light->type == LIGHT_TYPE::SPOTLIGHT) {
-							ImGui::SliderFloat("Cutoff", &selectedNode->light->innerConeAngle, 0.0f, 1.0f);
-							ImGui::SliderFloat("Outer Cutoff", &selectedNode->light->outerConeAngle, 0.0f, 1.0f);
-							ImGui::SliderFloat("Range", &selectedNode->light->range, 0.0f, 30.0f);
-						}
-						else if (selectedNode->light->type == LIGHT_TYPE::POINTLIGHT) {
-							ImGui::SliderFloat("Range", &selectedNode->light->range, 0.0f, 30.0f);
-						}
-						if (selectedNode->light->type == LIGHT_TYPE::DIRECTIONAL || selectedNode->light->type == LIGHT_TYPE::SPOTLIGHT) {
-							if (ImGui::InputFloat3("Look at", &selectedNode->light->lookAt[0])) {
-								selectedNode->light->direction = glm::normalize(selectedNode->light->lookAt - selectedNode->light->position);
-							}
-						}
-						ImGui::Checkbox("Cast shadows", &selectedNode->light->castShadows);
+						Light* light = selectedNode->light;
+						hasChanged |= ImGui::ColorEdit3("Color", &light->color[0]);
+						hasChanged |= ImGui::SliderFloat("Range", &light->range, 0.0f, 30.0f);
+						hasChanged |= ImGui::SliderFloat("Intensity", &light->intensity, 0.0f, 100.0f);
+						hasChanged |= ImGui::Checkbox("Cast shadow", &light->castShadows);
 						ImGui::Checkbox("Display shadowmap", &showShadowMap);
+
+						DirectionalLight* dirLight = nullptr;
+						PointLight* pointLight = nullptr;
+						SpotLight* spotLight = nullptr;
+
+						switch (selectedNode->light->getType()) {
+							case LIGHT_TYPE::DIRECTIONAL:
+								dirLight = dynamic_cast<DirectionalLight*>(selectedNode->light);
+								hasChanged |= ImGui::InputFloat2("Orthogonal size", &dirLight->camera.size[0]);
+								hasChanged |= ImGui::SliderFloat("Distance", &dirLight->distance, 0.0f, 100.0f);
+								hasChanged |= ImGui::SliderFloat("Shadow bias", &dirLight->shadowBias, 0.000001, 0.00001, "%.6f");
+								hasChanged |= ImGui::SliderFloat("Near plane", &dirLight->camera.nearPlane, 0.0f, 100.0f);
+								hasChanged |= ImGui::SliderFloat("Far plane", &dirLight->camera.farPlane, 0.0f, 100.0f);
+								break;
+							case LIGHT_TYPE::POINTLIGHT:
+								pointLight = dynamic_cast<PointLight*>(selectedNode->light);
+								hasChanged |= ImGui::SliderFloat("Attenuation", &pointLight->attenuation, 0.0f, 15.0f);
+								break;
+							case LIGHT_TYPE::SPOTLIGHT:
+								spotLight = dynamic_cast<SpotLight*>(selectedNode->light);
+								hasChanged |= ImGui::SliderFloat("Cutoff", &spotLight->innerConeAngle, 0.0f, 1.0f);
+								hasChanged |= ImGui::SliderFloat("Outer Cutoff", &spotLight->outerConeAngle, 0.0f, 1.0f);
+								break;
+						}
 						if (showShadowMap) {
 							GLuint textureID = selectedNode->light->shadowMap->GetTexture();
 							ImGui::Begin("Shadow Map", &showShadowMap);
@@ -187,27 +202,29 @@ void GUI::logic()
 							ImGui::Image(texID, ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
 							ImGui::End();
 						}
-						if (selectedNode->light->type == LIGHT_TYPE::DIRECTIONAL) {
-							ImGui::InputFloat("Orthogonal size", &selectedNode->light->orthogonalSize);
-							ImGui::InputFloat("Shadow bias", &selectedNode->light->shadowBias, 0.000001, 0.00001, "%.6f");
-							ImGui::InputFloat("Near plane", &selectedNode->light->nearPlane);
-							ImGui::InputFloat("Far plane", &selectedNode->light->farPlane);
-						}
 					}
+
+					PerspectiveCamera* perspCamera = nullptr;
 					if (selectedNode->camera) {
 						ImGui::SeparatorText("Camera");
-						ImGui::SliderFloat("FOV", &selectedNode->camera->fov, 0.0f, 180.0f);
-						ImGui::SliderFloat("Near", &selectedNode->camera->nearPlane, 0.0f, 100.0f);
-						ImGui::SliderFloat("Far", &selectedNode->camera->farPlane, 0.0f, 100.0f);
-						ImGui::SliderFloat("Aspect ratio", &selectedNode->camera->aspectRatio, 0.0f, 2.0f);
+						perspCamera = dynamic_cast<PerspectiveCamera*>(selectedNode->camera);
+						hasChanged |= ImGui::SliderFloat("FOV", &perspCamera->fov, 0.0f, 180.0f);
+						hasChanged |= ImGui::SliderFloat("Near", &perspCamera->nearPlane, 0.0f, 100.0f);
+						hasChanged |= ImGui::SliderFloat("Far", &perspCamera->farPlane, 0.0f, 100.0f);
+						hasChanged |= ImGui::SliderFloat("Aspect ratio", &perspCamera->aspectRatio, 0.0f, 2.0f);
 					}
 					if (selectedNode->mesh) {
 						ImGui::SeparatorText("Mesh");
+					}
+
+					if (true) {
+						selectedNode->rewriteMatrix();
 					}
 				}
 			}
 
 			if (ImGui::CollapsingHeader("Scene properties")) {
+				ImGui::SeparatorText("Render");
 				ImGui::SliderFloat("Ambient light", &scene->ambientLight, 0.0f, 1.0f);
 				ImGui::ColorEdit3("Ambient color", &scene->ambientColor[0]);
 				ImGui::SliderFloat("Shadow darkness", &scene->shadowDarkness, 0.0f, 1.0f);
@@ -220,17 +237,17 @@ void GUI::logic()
 			if (ImGui::Button("Add transform node")) {
 				scene->model->AddBasicNode();
 			}
-			if (ImGui::Button("Add light node")) {
-				scene->model->AddLightNode();
+			if (ImGui::Button("Add pointlight node")) {
+				scene->model->AddPointLightNode();
 			}
-			if (ImGui::Button("Import gltf")) {
-
+			if (ImGui::Button("Add spotlight node")) {
+				scene->model->AddSpotLightNode();
 			}
-			if (ImGui::Button("Export scene as gltf")) {
-
+			if (ImGui::Button("Add directional light node")) {
+				scene->model->AddDirectionalLightNode();
 			}
 			// Here we select the skybox
-			if (ImGui::BeginCombo("Skybox", scene->mainSkybox.c_str())) {
+			if (ImGui::BeginCombo("Select skybox to render", scene->mainSkybox.c_str())) {
 				for (auto& skybox : scene->getAllSkyboxes()) {
 					bool is_selected = (scene->mainSkybox == skybox);
 					if (ImGui::Selectable(skybox.c_str(), is_selected)) {
@@ -242,12 +259,9 @@ void GUI::logic()
 				}
 				ImGui::EndCombo();
 			}
-			if (ImGui::Button("Save camera")) {
-				scene->model->saveCamera();
-			}
 			ImGui::EndTabItem();
 		}
-		if (ImGui::BeginTabItem("Options"))
+		if (ImGui::BeginTabItem("Post process"))
 		{
 			// Checkbox if the aberration is applied
 			ImGui::Checkbox("Aberration", &quad->isAberrationApplied);
@@ -260,8 +274,6 @@ void GUI::logic()
 		}
 		ImGui::EndTabBar();
 	}
-
-
 
 	ImGui::End();
 	ImGui::Render();
