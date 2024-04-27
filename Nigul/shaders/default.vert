@@ -13,7 +13,7 @@ out vec2 texCoord; // Outputs the texture coordinates to the Fragment Shader
 uniform mat4 camMatrix; // Imports the camera matrix from the main function
 uniform mat4 model;
 
-#define MAX_LIGHTS 10
+#define MAX_LIGHTS 4
 uniform mat4 lightProjectionMatrixes[MAX_LIGHTS];
 out vec4 fragPositionLights[MAX_LIGHTS];
 

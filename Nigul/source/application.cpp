@@ -22,9 +22,16 @@ void Application::init() {
 		std::cout << "Failed to careate GLFW window" << std::endl;
 		glfwTerminate();
 	}
+
 	// Introduce the window into the current context
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
+
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+		// Handle GLAD initialization failure
+		glfwTerminate();
+		std::cerr << "Failed to load GLAD" << std::endl;
+	}
 
 	auto start = std::chrono::high_resolution_clock::now();
 
@@ -64,6 +71,7 @@ void Application::loop(){
 			lastTime += 1.0;
 		}
 
+
 		sceneManager->processInput(window);
 
 		sceneManager->passSceneProperties();
@@ -91,6 +99,7 @@ void Application::destroy() {
 	menu->destroy();
 	sceneManager->defaultShader->Delete();
 	sceneManager->skyboxShader->Delete();
+	sceneManager->shadowShader->Delete();
 	postpo->shader->Delete();
 	glfwDestroyWindow(window);
 	glfwTerminate();

@@ -638,14 +638,14 @@ void Model::deleteNode(int id) {
 void Model::passLightUniforms(Shader* shader)
 {
 	shader->Activate();
-	const int maxLights = 3; 
-	int indexTexture = lodTex.size();
-
+	const int maxLights = 4; 
+	int indexTexture = lodTex.size() ;
 	glm::vec3 lightColors[maxLights];
 	int lightTypes[maxLights];
 	int lightShadowMaps[maxLights];
 	glm::vec3 lightPositions[maxLights];
 	glm::vec3 lightDirections[maxLights];
+	bool lightCastShadows[maxLights];
 	float lightIntensities[maxLights];
 	float lightRanges[maxLights];
 	float lightInnerConeAngles[maxLights];
@@ -662,19 +662,41 @@ void Model::passLightUniforms(Shader* shader)
 		lightPositions[i] = light->position;
 		lightRanges[i] = light->range;
 		lightShadowMaps[i] = indexTexture + i;
-		glActiveTexture(GL_TEXTURE0 + lightShadowMaps[i]);
-		glBindTexture(GL_TEXTURE_2D, light->shadowMap->texture);
 		lightShadowBiases[i] = light->shadowBias;
-		lightAttenuations[i] = (dynamic_cast<PointLight*>(light)) ? static_cast<PointLight*>(light)->attenuation : 0.0f;
-		lightDirections[i] = (dynamic_cast<SpotLight*>(light)) ? static_cast<SpotLight*>(light)->direction : glm::vec3(0.0f);
-		lightInnerConeAngles[i] = (dynamic_cast<SpotLight*>(light)) ? static_cast<SpotLight*>(light)->innerConeAngle : 0.0f;
-		lightOuterConeAngles[i] = (dynamic_cast<SpotLight*>(light)) ? static_cast<SpotLight*>(light)->outerConeAngle : 0.0f;
-		lightProjectionMatrixes[i] = (dynamic_cast<DirectionalLight*>(light)) ? static_cast<DirectionalLight*>(light)->camera.cameraMatrix : glm::mat4(1.0f);
+		lightCastShadows[i] = light->castShadows;
+
+		if (light->getType() == POINTLIGHT) {
+			lightAttenuations[i] = dynamic_cast<PointLight*>(light)->attenuation;
+		}
+		else {
+			lightAttenuations[i] = 0.0f;
+		}
+
+		if (light->getType() == SPOTLIGHT) {
+			lightDirections[i] = dynamic_cast<SpotLight*>(light)->direction;
+			lightInnerConeAngles[i] = dynamic_cast<SpotLight*>(light)->innerConeAngle;
+			lightOuterConeAngles[i] = dynamic_cast<SpotLight*>(light)->outerConeAngle;
+		}
+		else {
+			lightDirections[i] = glm::vec3(0.0f);
+			lightInnerConeAngles[i] = 0.0f;
+			lightOuterConeAngles[i] = 0.0f;
+		}
+
+		if (light->getType() == DIRECTIONAL) {
+			lightProjectionMatrixes[i] = dynamic_cast<DirectionalLight*>(light)->camera.cameraMatrix;
+			glActiveTexture(GL_TEXTURE0 + lightShadowMaps[i]);
+			glBindTexture(GL_TEXTURE_2D, light->shadowMap->texture);
+		}
+		else {
+			lightProjectionMatrixes[i] = glm::mat4(1.0f);
+		}
 	}
 
 	shader->setSizeT("numLights", lodLight.size());
 	shader->setVecs3("lightColors", lightColors, maxLights);
 	shader->setInts("lightTypes", lightTypes, maxLights);
+	shader->setBools("lightCastShadows", lightCastShadows, maxLights);
 	shader->setInts("lightShadowMapSamples", lightShadowMaps, maxLights);
 	shader->setMats4("lightProjectionMatrixes", lightProjectionMatrixes, maxLights);
 	shader->setVecs3("lightPositions", lightPositions, maxLights);
@@ -763,24 +785,26 @@ void Model::renderShadowMaps(Shader* shader)
 	skipTransparent = true;
 
 	for (auto& light : lodLight) {
-		if (light->castShadows && light->getType() == DIRECTIONAL) {
-			DirectionalLight* direct = static_cast<DirectionalLight*>(light.get());
+		if (light->getType() != DIRECTIONAL)
+			continue;
 
-				direct->updateProjection();
+		DirectionalLight* direct = static_cast<DirectionalLight*>(light.get());
 
-			shader->Activate();
-			shader->setMat4("lightProjection", direct->camera.cameraMatrix);
+		direct->updateProjection();
 
-			glEnable(GL_DEPTH_TEST);
+		shader->Activate();
+		shader->setMat4("lightProjection", direct->camera.cameraMatrix);
 
-			direct->shadowMap->Bind();
+		glEnable(GL_DEPTH_TEST);
 
-			glClear(GL_DEPTH_BUFFER_BIT);
+		direct->shadowMap->Bind();
 
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		if (light->castShadows)
 			Draw(shader, nullptr);
 
-			direct->shadowMap->Unbind();
-		}
+		direct->shadowMap->Unbind();
 	}
 
 	skipTransparent = false;

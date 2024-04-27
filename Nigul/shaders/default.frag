@@ -44,7 +44,7 @@ uniform float shadowDarkness;
 uniform float reflectionFactor;
 
 // Light singlepass
-#define MAX_LIGHTS 10
+#define MAX_LIGHTS 4
 
 // Math constants
 #define RECIPROCAL_PI 0.3183098861837697
@@ -63,6 +63,7 @@ uniform float lightInnerConeAngles[MAX_LIGHTS];
 uniform float lightOuterConeAngles[MAX_LIGHTS];
 uniform sampler2D lightShadowMapSamples[MAX_LIGHTS];
 in vec4 fragPositionLights[MAX_LIGHTS];
+uniform bool lightCastShadows[MAX_LIGHTS];
 uniform float lightShadowBiases[MAX_LIGHTS];
 
 // Gamma functions
@@ -269,7 +270,10 @@ vec3 directLight(int index, vec4 baseColor)
 	}
 
 	// compute shadow
-	float shadow = computeShadow(index, n, l);
+	float shadow = 1.0;
+	if (lightCastShadows[index]) {
+		shadow = computeShadow(index, n, l);
+	}
 
 	// final light color
 	vec3 light = (diffuse + specular) * lightParams * shadow * occlusionValue;

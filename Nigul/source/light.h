@@ -23,7 +23,7 @@ public:
 
 	bool castShadows = true;
 	float shadowBias = 0.00001f;
-	std::unique_ptr<FBO> shadowMap = std::make_unique<FBO>(8192, 8192, true);
+	std::unique_ptr<FBO> shadowMap = std::make_unique<FBO>(4096, 4096, true);
 
 	bool hasChanged = true;
 

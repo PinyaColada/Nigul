@@ -70,6 +70,7 @@ public:
     void setMat4(const std::string &name, const glm::mat4 &mat) const;
 
     void setInts(const std::string& name, const int* value, int count = 1) const;
+    void setBools(const std::string& name, const bool* value, int count = 1) const;
     void setFloats(const std::string& name, const float* value, int count = 1) const;
     void setVecs2(const std::string& name, const glm::vec2* value, int count = 1) const;
     void setVecs3(const std::string& name, const glm::vec3* value, int count = 1) const;
