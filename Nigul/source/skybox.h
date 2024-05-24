@@ -1,9 +1,10 @@
 #pragma once
 
-#include "mesh.h"
-#include "shader.h"
-
 #include <stb/stb_image.h>
+#include <string>
+#include <vector>
+#include <iostream>
+#include <glad/glad.h>
 
 class Skybox
 {
@@ -17,6 +18,5 @@ public:
 	std::string folderPath;
 
 	Skybox(const std::string& folderPath, int slot);
-	void draw(Camera* camera, Shader* shader);
 };
 

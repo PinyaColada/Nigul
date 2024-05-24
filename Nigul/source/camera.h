@@ -4,6 +4,12 @@
 #include<glm/gtc/matrix_transform.hpp>
 #include<glm/gtx/vector_angle.hpp>
 
+enum CAMERA_TYPE
+{
+	ORTHOGRAPHIC,
+	PERSPECTIVE
+};
+
 class Camera
 {
 public:
@@ -17,6 +23,7 @@ public:
     glm::mat4 viewMatrix = glm::mat4(1.0f);
 
     glm::vec3 getPosition() const;
+    virtual CAMERA_TYPE getType() = 0;
 
     bool hasChanged = true;
 
@@ -31,8 +38,10 @@ class OrthographicCamera : public Camera
 {
 public:
     OrthographicCamera() = default;
+    CAMERA_TYPE getType() {return CAMERA_TYPE::ORTHOGRAPHIC;}
 
     glm::vec2 size = glm::vec2(5.0f, 5.0f);
+
 
 	void updateProjection() override;
 };
@@ -41,6 +50,7 @@ class PerspectiveCamera : public Camera
 {
 public:
     PerspectiveCamera() = default;
+    CAMERA_TYPE getType() {return CAMERA_TYPE::PERSPECTIVE;}
 
     float fov = 45.0f;
     float aspectRatio = 1.0f;

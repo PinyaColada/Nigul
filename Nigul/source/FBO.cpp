@@ -1,34 +1,16 @@
 #include "FBO.h"
 
-FBO::FBO(int width, int height, bool justDepthBuffer) : width(width), height(height) {
+FBO::FBO(int width, int height, int slot, bool useDepthTexture) : width(width), height(height) {
     glGenFramebuffers(1, &fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    if (useDepthTexture) {
+        tex = Texture::createShadowMapTexture(width, height, slot);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex->ID, 0);
 
-    if (justDepthBuffer) {
-        depthBuffer = 0; // We will not use the depth buffer but we need to initialize it
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-        // Prevents darkness outside the frustrum
-        float clampColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, clampColor);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, texture, 0);
-        // Needed since we don't touch the color buffer
-        glDrawBuffer(GL_NONE);
-        glReadBuffer(GL_NONE);
-    }
-    else {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    } else {
+        tex = Texture::createColorTexture(width, height, slot);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->ID, 0);
 
         glGenRenderbuffers(1, &depthBuffer);
         glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
@@ -38,24 +20,20 @@ FBO::FBO(int width, int height, bool justDepthBuffer) : width(width), height(hei
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 FBO::~FBO() {
-    glDeleteTextures(1, &texture);
     glDeleteRenderbuffers(1, &depthBuffer);
     glDeleteFramebuffers(1, &fbo);
 }
 
-void FBO::Bind() {
+void FBO::bind() {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glViewport(0, 0, width, height);
 }
 
-void FBO::Unbind() {
+void FBO::unbind() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-GLuint FBO::GetTexture() {
-    return texture;
 }

@@ -3,34 +3,29 @@
 #include "FBO.h"
 #include "Shader.h"
 
-class Quad {
+class MeshQuad {
 public:
-    Quad();
-    ~Quad();
-
-    void renderTexture(GLuint texture, int width, int height);
+    MeshQuad();
+    ~MeshQuad();
 
     GLuint vao, vbo;
 };
 
-class postProcessing {
+class FXQuad {
 public:
-    postProcessing(int width, int height);
-    ~postProcessing();
+    FXQuad(int width, int height);
+    ~FXQuad();
 
     std::unique_ptr<FBO> fbo;
-    std::unique_ptr<Quad> quad;
+    std::unique_ptr<MeshQuad> quad;
     std::unique_ptr<Shader> shader;
 
     int width;
     int height;
 
-    void render() const;
+    void passUniforms() const;
+    void toViewport() const;
 
     bool isToneMappingApplied = false;
-    bool isAberrationApplied = false;
-
-    float amountAberration = 0.01f;
-
-    int sampleMSAA = 0;
+    float exposure = 1.0f;
 };

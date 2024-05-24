@@ -4,6 +4,7 @@
 #include "scene.h"
 #include "skybox.h"
 #include "quad.h"
+#include "renderer.h"
 
 #include <iostream>
 #include <chrono>
@@ -12,6 +13,7 @@ class Application {
 public:
     // Constructor
     Application(int width, int height, const std::string& title);
+    ~Application();
 
     // Methods
     void init();
@@ -23,7 +25,7 @@ public:
     std::string title = "Nigul";
 
     GLFWwindow* window = nullptr;
-    std::unique_ptr<Scene> sceneManager = nullptr;
+    std::unique_ptr<SceneManager> sceneManager = nullptr;
     std::unique_ptr<GUI> menu = nullptr;
-    std::unique_ptr<postProcessing> postpo = nullptr;
+    std::unique_ptr<Renderer> renderer = nullptr;
 };

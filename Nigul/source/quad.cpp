@@ -1,6 +1,6 @@
 #include "Quad.h"
 
-Quad::Quad() {
+MeshQuad::MeshQuad() {
     float quadVertices[] = {
         // positions   // texCoords
         -1.0f,  1.0f,  0.0f, 1.0f,
@@ -25,46 +25,40 @@ Quad::Quad() {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
-Quad::~Quad() {
+MeshQuad::~MeshQuad() {
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
 }
 
-void Quad::renderTexture(GLuint texture, int width, int height) {
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, width, height);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glBindVertexArray(vao);
-
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glEnable(GL_DEPTH_TEST);
+FXQuad::FXQuad(int width, int height) : width(width), height(height){
+	fbo = std::make_unique<FBO>(width, height, 0, false);
+	quad = std::make_unique<MeshQuad>();
+    shader = std::make_unique<Shader>("quad.vert", "tonemapping.frag");
 }
 
-postProcessing::postProcessing(int width, int height) : width(width), height(height){
-	fbo = std::make_unique<FBO>(width, height, false);
-	quad = std::make_unique<Quad>();
-    shader = std::make_unique<Shader>("quad.vert", "quad.frag");
+FXQuad::~FXQuad() {
 }
 
-postProcessing::~postProcessing() {
+void FXQuad::toViewport() const{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, width, height);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, fbo->tex->ID);
+
+    glBindVertexArray(quad->vao);
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glEnable(GL_DEPTH_TEST);
 }
 
-void postProcessing::render() const {
-    shader->Activate();
+void FXQuad::passUniforms() const {
+    shader->activate();
 
     shader->setInt("screenTexture", 0);
 
-    shader->setInt("sampleMSAA", sampleMSAA);
-
-    shader->setBool("isAberrationApplied", isAberrationApplied);
     shader->setBool("isToneMappingApplied", isToneMappingApplied);
-
-    shader->setFloat("amountAberration", amountAberration);
-
-	quad->renderTexture(fbo->texture, width, height);
+    shader->setFloat("exposure", exposure);
 }

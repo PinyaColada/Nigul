@@ -48,6 +48,11 @@ Shader::Shader(const char* computeFile)
 	glDeleteShader(computeShader);
 }
 
+Shader::~Shader()
+{
+	glDeleteProgram(ID);
+}
+
 Shader::Shader(const char* vertexFile, const char* fragmentFile)
 {
 	// Get file path
@@ -89,14 +94,9 @@ Shader::Shader(const char* vertexFile, const char* fragmentFile)
 
 }
 
-void Shader::Activate()
+void Shader::activate()
 {
 	glUseProgram(ID);
-}
-
-void Shader::Delete()
-{
-	glDeleteProgram(ID);
 }
 
 void Shader::compileErrors(unsigned int shader, const char* type)
@@ -200,9 +200,9 @@ void Shader::setMats4(const std::string& name, const glm::mat4* mats, int count)
 	glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), count, GL_FALSE, &mats[0][0][0]);
 }
 
-void Shader::setCubemap(const std::string& name, GLuint texture, GLuint slot) const
+void Shader::setSkybox(const std::string& name, const Skybox& skybox) const
 {
-	glActiveTexture(GL_TEXTURE0 + slot);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
-	glUniform1i(glGetUniformLocation(ID, name.c_str()), slot);
+	glActiveTexture(GL_TEXTURE0 + skybox.slot);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.cubemapTexture);
+	glUniform1i(glGetUniformLocation(ID, name.c_str()), skybox.slot);
 }

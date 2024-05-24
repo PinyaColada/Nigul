@@ -17,14 +17,9 @@ void SpotLight::updatePosition(const glm::mat4& mat)
 
 void DirectionalLight::updateProjection()
 {
-	glm::vec3 pos = position * distance;
-	glm::vec3 target = glm::vec3(0.0f);
-
-	camera.updateView(pos, target);
-	camera.updateProjection();
-	camera.updateMatrix();
-
-	hasChanged = false;
+	camera->updateView(position * distance, glm::vec3(0.0f));
+	camera->updateProjection();
+	camera->updateMatrix();
 }
 
 LIGHT_TYPE DirectionalLight::getType()

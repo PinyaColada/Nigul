@@ -99,6 +99,9 @@
     <ClCompile Include="source\application.cpp">
       <Filter>Archivos de origen</Filter>
     </ClCompile>
+    <ClCompile Include="source\renderer.cpp">
+      <Filter>Archivos de origen</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dependencies\include\glad\glad.h">
@@ -932,6 +935,9 @@
     <ClInclude Include="source\application.h">
       <Filter>Archivos de encabezado</Filter>
     </ClInclude>
+    <ClInclude Include="source\renderer.h">
+      <Filter>Archivos de encabezado</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Library Include="dependencies\lib\glfw3.lib" />
@@ -1353,7 +1359,7 @@
     </None>
     <None Include="imgui.ini" />
     <None Include="shaders\quad.vert" />
-    <None Include="shaders\quad.frag" />
+    <None Include="shaders\tonemapping.frag" />
     <None Include="shaders\postprocess.comp" />
     <None Include="models\helmet\SciFiHelmet.bin">
       <Filter>Archivos de recursos</Filter>

@@ -8,6 +8,7 @@
 #include <json/json.h>
 #include <functional>
 #include <unordered_set>
+#include <bitset>
 
 #include "Mesh.h"
 #include "Material.h"
@@ -15,9 +16,29 @@
 #include "FBO.h"
 #include "light.h"
 
+#define MAX_LIGHTS 4
+
+enum LightChangeFlags {
+	Colors,
+	Positions,
+	Types,
+	Intensities,
+	Ranges,
+	ShadowBiases,
+	Attenuations,
+	ProjectionMatrices,
+	Directions,
+	InnerConeAngles,
+	OuterConeAngles,
+	CastShadows,
+	ShadowMapSamples,
+	NumLightChangeFlags
+};
+
 class Node {
 public:
 	Node() = default;
+	~Node() = default;
 
 	Light* light = nullptr;
 	Mesh* mesh = nullptr;
@@ -32,7 +53,6 @@ public:
 	std::vector<std::unique_ptr<Node>> children;
 
 	int id = 0;
-	bool hasChanged = true;
 
 	Node(int id, glm::mat4 matrix, glm::mat4 globalMatrix, Node* parent = nullptr, std::string name = std::string("Node"));
 
@@ -41,26 +61,14 @@ public:
 	bool isLeaf() const;
 };
 
-struct DrawCall {
-	Mesh* mesh;
-	Shader* shader;
-	glm::mat4 globalMatrix;
-
-	void call(Camera* camera) {
-		mesh->Draw(shader, camera, globalMatrix);
-	}
-};
-
 class Model
 {
 public:
 	// Loads in a model from a file and stores the information in 'data', 'JSON', and 'file'
 	Model();
+	~Model() = default;
 	void load();
-
-	void Draw(Shader* shader, Camera* camera);
-	void passLightUniforms(Shader* shader);
-	void renderShadowMaps(Shader* shader);
+	void save();
 
 	// Variables for easy access
 	std::string file;
@@ -72,8 +80,6 @@ public:
 	std::vector<std::unique_ptr<Light>> lodLight;
 	std::vector<std::unique_ptr<Camera>> lodCamera;
 
-	std::vector<DrawCall> drawCalls;
-
 	std::unique_ptr<Node> root;
 
 	// Loads a single mesh by its index
@@ -84,34 +90,53 @@ public:
 	void loadCameras();
 
 	int mainCameraId = -1;
+	int nodeWithCamera = -1;
 	int numNodes = 0;
-	int numTextures = 0;
+	int selectedNodeId = 0;
+
 	bool skipTransparent = false;
+	bool loaded = false;
+
+	float ambientLight = 0.05f;
+	glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	glm::vec3 backgroundColor = glm::vec3(1.0f, 1.0f, 1.0f);
+	float shadowDarkness = 1.0f;
+	float reflectionFactor = 0.5f;
 
 	std::vector<unsigned int> findRootNodes();
-
-	// Traverses a node recursively, so it essentially traverses all connected nodes
 	void traverseNode(unsigned int nextNode, glm::mat4 parentMatrix = glm::mat4(1.0f), Node* parentNode = nullptr);
-	void updateTree(Node& node, Shader& shader, glm::mat4 parentMatrix);
+	void updateTreeFrom(Node* node, glm::mat4 parentMatrix);
 
 	Node* searchNodeByID(Node* node, int targetId);
 	Node* getNodeByID(int id);
+	std::vector<Node*> getTree();
 
-	// Destructor
 	void deleteNode(int id);
 	void reparentNode(int id, int newParentId);
 
 	void AddBasicNode();
-	void AddDirectionalLightNode();
-	void AddPointLightNode();
-	void AddSpotLightNode();
+	void AddLightNode(LIGHT_TYPE lightType);
 	void AddCameraNode();
+
 	std::vector<int> filterNodesOfModel(std::function<bool(int nodeID)> func);
+
+	// Getters
+	inline Camera* getMainCamera() { return lodCamera[mainCameraId].get(); }
+	inline Node* getSelectedNode() { return getNodeByID(selectedNodeId); }
+	inline Node* getMainCameraNode() { return getNodeByID(nodeWithCamera); }
+	inline Node* getRootNode() { return root.get(); }
 
 	// Assembles all the floats into vertices
 	std::vector<Vertex> assembleVertices(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals, const std::vector<glm::vec2>& texUVs);
-
 	std::vector<GLuint> getIndices(int accessorIndex);
 	std::vector<glm::vec2> getVec2(int accessorIndex);
 	std::vector<glm::vec3> getVec3(int accessorIndex);
+
+	// Flags for changes
+	std::bitset<NumLightChangeFlags> lightFlags;
+	bool hasAmbientLightChanged = true;
+	bool hasAmbientColorChanged = true;
+	bool hasShadowDarknessChanged = true;
+	bool hasReflectionFactorChanged = true;
+	bool hasSkyboxChanged = true;
 };

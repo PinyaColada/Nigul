@@ -9,35 +9,36 @@
 
 #include "camera.h"
 #include "scene.h"
-#include "shader.h"
-#include "quad.h"
-
-enum GUI_MODE {
-    MODEL,
-    LIGHT,
-    WORLD
-};
+#include "renderer.h"
 
 class GUI {
 public:
-    GUI_MODE mode;
-    int selectedNodeId;
-    bool showShadowMap;
-    Scene* scene = nullptr;
-    postProcessing* quad = nullptr;
+    bool showShadowMap = false;
 
-    float rotationRootX = 0.0f;
-    float rotationRootY = 0.0f;
+    bool firstClick = true;
 
-    GUI(Scene* scene, postProcessing* quad);
+    float speed = 0.1f;
+    float sensitivity = 0.001f;
+    double axisX = 600;
+    double axisY = 600;
+
+    GUI() = default;
+    ~GUI();
 
     void init(GLFWwindow* window);
-    void logic();
-    void displayNode(Node& node);
-    void createFrame();
-    void destroy();
-    void input();
-    bool editTransform(const Camera& camera, glm::f32* matrix);
+
+    void logic(SceneManager* model, Renderer* renderer);
+    bool input(Model* model);
+
+    void displayNode(Model* model, Node* node);
+    bool displayGizmo(Model* model);
+    void displayGeneral(Model* model);
+    void displayLight(Model* model);
+    void displayCamera(Model* model);
+    void displayRender(Model* model);
+    void displayActions(SceneManager* scene);
+
+    void createFrame(SceneManager* scene, Renderer* renderer);
 
     bool isMouseAvaliable();
 };

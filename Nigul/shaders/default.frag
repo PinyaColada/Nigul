@@ -63,7 +63,7 @@ uniform float lightInnerConeAngles[MAX_LIGHTS];
 uniform float lightOuterConeAngles[MAX_LIGHTS];
 uniform sampler2D lightShadowMapSamples[MAX_LIGHTS];
 in vec4 fragPositionLights[MAX_LIGHTS];
-uniform bool lightCastShadows[MAX_LIGHTS];
+uniform int lightCastShadows[MAX_LIGHTS]; // You can't pass bools array to the shaders
 uniform float lightShadowBiases[MAX_LIGHTS];
 
 // Gamma functions
@@ -264,14 +264,14 @@ vec3 directLight(int index, vec4 baseColor)
 	// light params
 	vec3 lightParams = lightColors[index] * lightIntensities[index];
 
-	float occlusionValue = 1.0;
+	float occlusionValue = 1.0f;
 	if (hasOcclusionTexture) {
 		occlusionValue = texture(occlusion, texCoord).r;
 	}
 
 	// compute shadow
-	float shadow = 1.0;
-	if (lightCastShadows[index]) {
+	float shadow = 1.0f;
+	if (lightCastShadows[index] == 1) {
 		shadow = computeShadow(index, n, l);
 	}
 
@@ -331,7 +331,7 @@ vec3 spotLight(int index, vec4 baseColor)
 
 	// final light color
 	vec3 light = (diffuse + specular) * lightParams;
-	return light;
+	return 	light;
 }
 
 void main()
@@ -366,5 +366,6 @@ void main()
         light += emissiveColor;
     }
 	color = vec4(light * color.rgb, color.a);
+	
 	FragColor = color;
 }

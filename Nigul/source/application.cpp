@@ -1,14 +1,11 @@
 #include "application.h"
 
-Application::Application(int width, int height, const std::string& title): width(width), height(height), title(title)
-{}
+Application::Application(int width, int height, const std::string& title): width(width), height(height), title(title){}
 
 void Application::init() {
-	std::cout << "App started" << std::endl;
-	// Initialize GLFW
 	glfwSetErrorCallback([](int error, const char* description) {
 		std::cerr << "GLFW Error (" << error << "): " << description << std::endl;
-		});
+	});
 
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -16,91 +13,41 @@ void Application::init() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	window = glfwCreateWindow(width, height, "Nigul", NULL, NULL);
-	// Error check if the window fails to create
-	if (window == NULL)
+	if (!window)
 	{
 		std::cout << "Failed to careate GLFW window" << std::endl;
 		glfwTerminate();
 	}
 
-	// Introduce the window into the current context
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-		// Handle GLAD initialization failure
-		glfwTerminate();
-		std::cerr << "Failed to load GLAD" << std::endl;
-	}
-
-	auto start = std::chrono::high_resolution_clock::now();
-
-	sceneManager = std::make_unique<Scene>();
+	sceneManager = std::make_unique<SceneManager>();
 	sceneManager->loadScene();
 
-	auto end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> elapsed = end - start;
+	renderer = std::make_unique<Renderer>(width, height);
 
-	std::cout << "Scene loaded in " << elapsed.count() << " ms\n";
-
-	postpo = std::make_unique<postProcessing>(width, height);
-
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-
-	menu = std::make_unique<GUI>(sceneManager.get(), postpo.get());
+	menu = std::make_unique<GUI>();
 	menu->init(window);
-
-	double lastTime = glfwGetTime();
-	int nbFrames = 0;
 }
 
 void Application::loop(){
-	double lastTime = glfwGetTime();
-	int nbFrames = 0;
-
-	// Main while loop
 	while (!glfwWindowShouldClose(window)) {
-		// Measure fps
-		double currentTime = glfwGetTime();
-		nbFrames++;
-		if (currentTime - lastTime >= 1.0)
-		{
-			glfwSetWindowTitle(window, (title + " | " + std::to_string(nbFrames) + " fps").c_str());
-			nbFrames = 0;
-			lastTime += 1.0;
-		}
+		Model* model = sceneManager->getMainModel();
+		Skybox* skybox = sceneManager->getMainSkybox();
+		SceneManager* sm = sceneManager.get();
+		Renderer* r = renderer.get();
 
-
-		sceneManager->processInput(window);
-
-		sceneManager->passSceneProperties();
-
-		postpo->fbo->Bind();
-
-		glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		sceneManager->drawScene();
-
-		postpo->fbo->Unbind();
-
-		postpo->render();
-
-		menu->createFrame();
-		menu->logic();
+		renderer->render(model, skybox);
+		menu->createFrame(sm, r);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 }
 
-void Application::destroy() {
-	menu->destroy();
-	sceneManager->defaultShader->Delete();
-	sceneManager->skyboxShader->Delete();
-	sceneManager->shadowShader->Delete();
-	postpo->shader->Delete();
+Application::~Application() {
+	menu.reset(); // Lets clean first ImGUI
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

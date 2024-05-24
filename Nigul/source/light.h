@@ -23,9 +23,10 @@ public:
 
 	bool castShadows = true;
 	float shadowBias = 0.00001f;
-	std::unique_ptr<FBO> shadowMap = std::make_unique<FBO>(4096, 4096, true);
+	std::unique_ptr<FBO> shadowMap = nullptr;
+	Camera* camera = nullptr;
 
-	bool hasChanged = true;
+	int index = 0;
 
 	virtual void updateProjection() = 0;
 	virtual void updatePosition(const glm::mat4& mat) = 0;
@@ -49,8 +50,7 @@ class DirectionalLight : public Light {
 public:
 	DirectionalLight() = default;
 
-	OrthographicCamera camera;
-	float distance = 20.0f;
+	float distance = 5.0f;
 
 	void updateProjection() override;
 	void updatePosition(const glm::mat4& mat) override;

@@ -104,7 +104,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\jaume\source\repos\Nigul\Nigul\dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\jaume\source\repos\Nigul\Nigul\dependencies\include</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
@@ -117,7 +117,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\jaume\source\repos\Nigul\Nigul\dependencies\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\jaume\source\repos\Nigul\Nigul\dependencies\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -129,7 +129,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\JVaquer\Documents\Nigul\Nigul\dependencies\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\jaume\source\repos\Nigul\Nigul\dependencies\include</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
@@ -143,7 +143,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\JVaquer\Documents\Nigul\Nigul\dependencies\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Users\jaume\source\repos\Nigul\Nigul\dependencies\lib</AdditionalLibraryDirectories>
       <AdditionalDependencies>glfw3.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -160,6 +160,7 @@
     <ClCompile Include="source\FBO.cpp" />
     <ClCompile Include="source\light.cpp" />
     <ClCompile Include="source\quad.cpp" />
+    <ClCompile Include="source\renderer.cpp" />
     <ClCompile Include="source\skybox.cpp" />
     <ClCompile Include="source\GUI.cpp" />
     <ClCompile Include="source\material.cpp" />
@@ -194,6 +195,7 @@
     <ClInclude Include="source\FBO.h" />
     <ClInclude Include="source\light.h" />
     <ClInclude Include="source\quad.h" />
+    <ClInclude Include="source\renderer.h" />
     <ClInclude Include="source\skybox.h" />
     <ClInclude Include="source\material.h" />
     <ClInclude Include="source\model.h" />
@@ -607,7 +609,7 @@
     <None Include="shaders\default.vert" />
     <None Include="shaders\normal.frag" />
     <None Include="shaders\postprocess.comp" />
-    <None Include="shaders\quad.frag" />
+    <None Include="shaders\tonemapping.frag" />
     <None Include="shaders\quad.vert" />
     <None Include="shaders\quadDepthTexture.frag" />
     <None Include="shaders\shadow.frag" />

@@ -65,8 +65,6 @@ Skybox::Skybox(const std::string& folderPath, int slot)
 		folderPath + "/nz.png"
 	};
 
-	std::cout << folderPath << std::endl;
-
 	glGenTextures(1, &cubemapTexture);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -82,7 +80,6 @@ Skybox::Skybox(const std::string& folderPath, int slot)
 	{
 		int width, height, nrChannels;
 		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
-		std::cout << "width: " << width << " height: " << height << " nrChannels: " << nrChannels << "\n";
 		if (data)
 		{
 			stbi_set_flip_vertically_on_load(false);
@@ -120,6 +117,7 @@ Skybox::Skybox(const std::string& folderPath, int slot)
 			{
 				std::cout << "nrChannels not 3 or 4" << std::endl;
 			}
+
 			stbi_image_free(data);
 		}
 		else
@@ -128,22 +126,10 @@ Skybox::Skybox(const std::string& folderPath, int slot)
 			stbi_image_free(data);
 		}
 	}
-}
 
- void Skybox::draw(Camera* camera, Shader* shader)
-{
-	shader->Activate();
+	// Generate mipmaps
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
-	glDepthFunc(GL_LEQUAL);
-	glBindVertexArray(VAO);
-
-	glm::mat4 view = glm::mat4(glm::mat3(camera->viewMatrix));
-
-	shader->setMat4("view", view);
-	shader->setMat4("projection", camera->projectionMatrix);
-	shader->setCubemap("skybox", cubemapTexture, slot);
-
-	glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
-	glBindVertexArray(0);
-	glDepthFunc(GL_LESS);
+	// Unbind texture
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 }

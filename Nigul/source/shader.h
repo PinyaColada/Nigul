@@ -8,6 +8,8 @@
 #include <iostream>
 #include <cerrno>
 
+#include "skybox.h"
+
 /**
  * @brief Reads the entire content of a file into a string.
  *
@@ -40,16 +42,12 @@ public:
      * @param computer shader file
      */
     Shader(const char* computerFile);
+    ~Shader();
 
     /**
      * @brief Activates the shader program, making it the current one used by OpenGL.
      */
-    void Activate();
-
-    /**
-     * @brief Deletes the shader program, freeing up resources.
-     */
-    void Delete();
+    void activate();
 
     /**
      * @brief checks if the shaders have been compiled succesfully
@@ -77,6 +75,6 @@ public:
     void setVecs4(const std::string& name, const glm::vec4* value, int count = 1) const;
     void setMats4(const std::string& name, const glm::mat4* mat, int count = 1) const;
 
-    void setCubemap(const std::string &name, GLuint texture, GLuint slot) const;
+    void setSkybox(const std::string &name, const Skybox& skybox) const;
 
 };

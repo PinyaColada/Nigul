@@ -6,7 +6,7 @@ void Material::bind(Shader* shader) {
 
 	if (pbrMetallicRoughness.baseColorTexture) {
 		pbrMetallicRoughness.baseColorTexture->texUnit(shader, "albedo");
-		pbrMetallicRoughness.baseColorTexture->Bind();
+		pbrMetallicRoughness.baseColorTexture->bind();
 		glUniform1i(glGetUniformLocation(shader->ID, "hasColorTexture"), 1);
 	}
 	else {
@@ -15,7 +15,7 @@ void Material::bind(Shader* shader) {
 
 	if (pbrMetallicRoughness.metallicRoughness) {
 		pbrMetallicRoughness.metallicRoughness->texUnit(shader, "metallicRoughness");
-		pbrMetallicRoughness.metallicRoughness->Bind();
+		pbrMetallicRoughness.metallicRoughness->bind();
 		glUniform1i(glGetUniformLocation(shader->ID, "hasMetallicRoughnessTexture"), 1);
 	}
 	else {
@@ -31,7 +31,7 @@ void Material::bind(Shader* shader) {
 
 	if (emissiveTexture) {
 		emissiveTexture->texUnit(shader, "emissive");
-		emissiveTexture->Bind();
+		emissiveTexture->bind();
 		glUniform1i(glGetUniformLocation(shader->ID, "hasEmissiveTexture"), 1);
 	} else {
 		glUniform1i(glGetUniformLocation(shader->ID, "hasEmissiveTexture"), 0);
@@ -39,7 +39,7 @@ void Material::bind(Shader* shader) {
 
 	if (normalMap) {
 		normalMap->texUnit(shader, "normalMap");
-		normalMap->Bind();
+		normalMap->bind();
 		glUniform1i(glGetUniformLocation(shader->ID, "hasNormalTexture"), 1);
 	}
 	else {
@@ -48,7 +48,7 @@ void Material::bind(Shader* shader) {
 
 	if (occlusionTexture) {
 		occlusionTexture->texUnit(shader, "occlusion");
-		occlusionTexture->Bind();
+		occlusionTexture->bind();
 		glUniform1i(glGetUniformLocation(shader->ID, "hasOcclusionTexture"), 1);
 	}
 	else {

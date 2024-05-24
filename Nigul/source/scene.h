@@ -4,62 +4,29 @@
 #include "model.h"
 #include "skybox.h"
 
-using json = nlohmann::json;
-
-class Scene {
+class SceneManager {
 public:
-    // Scene properties
-    float ambientLight = 0.05f;
-
-    glm::vec3 ambientColor = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 backgroundColor = glm::vec3(1.0f, 1.0f, 1.0f);
-    float shadowDarkness = 1.0f;
-    float reflectionFactor = 0.5f;
-
-    std::unique_ptr<Model> model = nullptr;
-    // std::unique_ptr<Skybox> skybox = std::make_unique<Skybox>("skyboxes/night/");
 
     std::map<std::string, std::unique_ptr<Skybox>> skyboxes;
     std::string mainSkybox = "None";
-    int loadedSkyboxes = 0;
 
-    Camera* camera = nullptr;
+    std::map<std::string, std::unique_ptr<Model>> models;
+    std::string mainModel = "None";
 
-    std::unique_ptr<Shader> skyboxShader;
-    std::unique_ptr<Shader> defaultShader;
-    std::unique_ptr<Shader> shadowShader;
+    SceneManager() = default;
+    void loadScene();
 
-    std::string modelPath;
-    std::string skyboxPath;
-
-    bool firstClick = true;
-
-    float speed = 0.1f;
-    float sensitivity = 0.01f;
-    double axisX = 600;
-    double axisY = 600;
-
-    Scene();
-
-    // Method to pass scene properties to the shader
-    void passSceneProperties();
-
+    // Dynamic skybox methods
     void loadSkybox(std::string name);
     std::vector<std::string> getAllSkyboxes();
 
-    // Draw method
-    void drawScene();
+    // Dynamic model methods
+    void loadModel(std::string path);
+    std::vector<std::string> getAllModels();
 
-    // Method to save the scene to a JSON file
-    void saveScene();
+    // Getters 
+    inline Model* getMainModel() { return models[mainModel].get(); }
+    inline Skybox* getMainSkybox() { return skyboxes[mainSkybox].get(); }
 
-    // Method to load the scene from a JSON file
-    void loadScene();
-
-    // Input method
-    void processInput(GLFWwindow* window);
-
-    // Helper method to serialize scene properties to JSON
-    json serializeSceneProperties();
 };
 
