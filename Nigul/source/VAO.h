@@ -27,17 +27,17 @@ public:
      * @param stride
      * @param offset
      */
-    void LinkAttrib(VBO& VBO, GLuint layout, GLuint numComponents, GLenum type, GLsizeiptr stride, void* offset);
+    void linkAttrib(VBO& VBO, GLuint layout, GLuint numComponents, GLenum type, GLsizeiptr stride, void* offset);
 
     /**
      * @brief Binds the VAO to the current OpenGL context.
      */
-    void Bind();
+    void bind();
 
     /**
      * @brief Unbinds the VAO from the current OpenGL context.
      */
-    void Unbind();
+    void unbind();
 
     /**
      * @brief Deletes the VAO and frees its resources.

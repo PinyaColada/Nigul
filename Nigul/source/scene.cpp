@@ -36,7 +36,7 @@ void SceneManager::loadScene() {
 void SceneManager::loadSkybox(std::string name)
 {
     if (name != "None" && skyboxes[name] == nullptr) {
-        skyboxes[name] = std::make_unique<Skybox>("skyboxes/" + name, 25 + skyboxes.size());
+        skyboxes[name] = std::make_unique<Skybox>("skyboxes/" + name, 90 + skyboxes.size());
     }
 
     mainSkybox = name;

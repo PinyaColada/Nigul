@@ -32,6 +32,7 @@ enum LightChangeFlags {
 	OuterConeAngles,
 	CastShadows,
 	ShadowMapSamples,
+	enablings,
 	NumLightChangeFlags
 };
 
@@ -74,9 +75,9 @@ public:
 	std::string file;
 
 	// Prevents textures from being loaded twice
-	std::vector<std::unique_ptr<Texture>> lodTex;
+	std::vector<std::unique_ptr<Texture>> lodTex; 
 	std::vector<std::unique_ptr<Material>> lodMat;
-	std::vector<std::unique_ptr<Mesh>> lodMesh;
+	std::vector<std::unique_ptr<Mesh>> lodMesh; 
 	std::vector<std::unique_ptr<Light>> lodLight;
 	std::vector<std::unique_ptr<Camera>> lodCamera;
 
@@ -88,6 +89,7 @@ public:
 	void loadMeshes();
 	void loadLights();
 	void loadCameras();
+	void loadModelProperties();
 
 	int mainCameraId = -1;
 	int nodeWithCamera = -1;
@@ -114,9 +116,9 @@ public:
 	void deleteNode(int id);
 	void reparentNode(int id, int newParentId);
 
-	void AddBasicNode();
-	void AddLightNode(LIGHT_TYPE lightType);
-	void AddCameraNode();
+	void addTransformNode();
+	void addLightNode(LIGHT_TYPE lightType);
+	void addMainCameraNode();
 
 	std::vector<int> filterNodesOfModel(std::function<bool(int nodeID)> func);
 

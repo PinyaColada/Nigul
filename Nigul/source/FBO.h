@@ -4,18 +4,28 @@
 
 #include "texture.h"
 
+enum FBO_TYPE {
+    FBO_DEPTH,
+	FBO_ONE_COLOR,
+    FBO_TWO_COLOR,
+    FBO_THREE_COLOR,
+    FBO_FOUR_COLOR,
+    FBO_MULTISAMPLE
+};
+
 class FBO {
 public:
-    FBO(int width, int height, int slot, bool useDepthTexture);
+    FBO(int width, int height, int slot, FBO_TYPE fboType);
     ~FBO();
 
     void bind();
     void unbind();
 
-    GLuint fbo;
+    GLuint ID;
     GLuint depthBuffer;
 
-    std::unique_ptr<Texture> tex = nullptr;
+    std::vector<std::unique_ptr<Texture>> colorTextures = {};
+    std::unique_ptr<Texture> depthTex;
 
     int width, height;
 };

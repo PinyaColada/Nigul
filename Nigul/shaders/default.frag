@@ -64,6 +64,7 @@ uniform float lightOuterConeAngles[MAX_LIGHTS];
 uniform sampler2D lightShadowMapSamples[MAX_LIGHTS];
 in vec4 fragPositionLights[MAX_LIGHTS];
 uniform int lightCastShadows[MAX_LIGHTS]; // You can't pass bools array to the shaders
+uniform int lightEnablings[MAX_LIGHTS];
 uniform float lightShadowBiases[MAX_LIGHTS];
 
 // Gamma functions
@@ -345,6 +346,9 @@ void main()
 
 	vec3 light = ambientLight * ambientColor;
 	for (int i = 0; i < numLights; i++) {
+		if (lightEnablings[i] == 0) {
+			continue;
+		}
 		switch (lightTypes[i]) {
 			case 0:
 				light += pointLight(i, color);
@@ -366,6 +370,6 @@ void main()
         light += emissiveColor;
     }
 	color = vec4(light * color.rgb, color.a);
-	
+
 	FragColor = color;
 }

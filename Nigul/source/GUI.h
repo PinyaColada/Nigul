@@ -14,6 +14,7 @@
 class GUI {
 public:
     bool showShadowMap = false;
+    bool showNormalMap = false;
 
     bool firstClick = true;
 
@@ -35,8 +36,12 @@ public:
     void displayGeneral(Model* model);
     void displayLight(Model* model);
     void displayCamera(Model* model);
-    void displayRender(Model* model);
+    void displayRender(Model* model, Renderer* render);
     void displayActions(SceneManager* scene);
+    void displayFXAberration(FXAberration* fx);
+    void displayFXTonemap(FXTonemap* fx);
+    void filterFX(FXQuad* fx);
+    void displayFX(Renderer* renderer);
 
     void createFrame(SceneManager* scene, Renderer* renderer);
 

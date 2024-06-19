@@ -32,11 +32,12 @@ void Application::init() {
 }
 
 void Application::loop(){
+	SceneManager* sm = sceneManager.get();
+	Renderer* r = renderer.get();
+
 	while (!glfwWindowShouldClose(window)) {
 		Model* model = sceneManager->getMainModel();
 		Skybox* skybox = sceneManager->getMainSkybox();
-		SceneManager* sm = sceneManager.get();
-		Renderer* r = renderer.get();
 
 		renderer->render(model, skybox);
 		menu->createFrame(sm, r);

@@ -17,7 +17,7 @@ bool GUI::input(Model* model) {
 		if (ImGui::Button("OK", ImVec2(120, 0))) {
 			inputApplied = true;
 			model->deleteNode(model->selectedNodeId);
-			model->selectedNodeId = -1;
+			model->selectedNodeId = 0;
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SetItemDefaultFocus();
@@ -35,29 +35,30 @@ bool GUI::input(Model* model) {
 		glm::mat4 cameraMatrix = cameraNode->matrix;
 
 		// Get the position and rotation
-		glm::vec3 position = glm::vec3(cameraMatrix[3]);
-		glm::quat rotation = glm::quat_cast(cameraMatrix);
-		glm::vec3 orientation = glm::vec3(-cameraMatrix[0][2], -cameraMatrix[1][2], -cameraMatrix[2][2]);
-		glm::vec3 up = glm::vec3(1.0f, 0.0f, 0.0f);
+		glm::vec3 position = glm::vec3(glm::inverse(cameraMatrix)[3]);
+		glm::vec3 orientation = glm::normalize(glm::vec3(-cameraMatrix[0][2], -cameraMatrix[1][2], -cameraMatrix[2][2]));
+		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 
 		// Handles key inputs
 		if (ImGui::IsKeyDown(ImGuiKey_W)) {
-			position += speed * glm::vec3(rotation * glm::vec4(0, 0, -1, 0));
+			position += speed * orientation;
 		}
 		if (ImGui::IsKeyDown(ImGuiKey_S)) {
-			position -= speed * glm::vec3(rotation * glm::vec4(0, 0, -1, 0));
-		}
-		if (ImGui::IsKeyDown(ImGuiKey_A)) {
-			position += speed * glm::vec3(rotation * glm::vec4(-1, 0, 0, 0));
+			position -= speed * orientation;
 		}
 		if (ImGui::IsKeyDown(ImGuiKey_D)) {
-			position -= speed * glm::vec3(rotation * glm::vec4(-1, 0, 0, 0));
+			glm::vec3 side = glm::normalize(glm::cross(orientation, up));
+			position += speed * side;
+		}
+		if (ImGui::IsKeyDown(ImGuiKey_A)) {
+			glm::vec3 side = glm::normalize(glm::cross(orientation, up));
+			position -= speed * side;
 		}
 		if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-			position += speed * glm::vec3(rotation * glm::vec4(0, 1, 0, 0));
+			position += speed * up;
 		}
 		if (ImGui::IsKeyDown(ImGuiKey_E)) {
-			position -= speed * glm::vec3(rotation * glm::vec4(0, 1, 0, 0));
+			position -= speed * up;
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
@@ -77,21 +78,17 @@ bool GUI::input(Model* model) {
 		float yaw = sensitivity * (float)(mouseY - axisY);
 		float pitch = sensitivity * (float)(mouseX - axisX);
 
-		glm::quat pitchQuad = glm::rotate(rotation, glm::radians(pitch), glm::normalize(glm::cross(orientation, up)));
+		glm::vec3 newOrientation = glm::rotate(orientation, glm::radians(-yaw), glm::normalize(glm::cross(orientation, up)));
 
-		if (glm::angle(up * pitchQuad, up) < glm::radians(85.0f)) {
-			rotation = pitchQuad;
+		if (abs(glm::angle(newOrientation, up) - glm::radians(90.0f)) < glm::radians(85.0f)) {
+			orientation = newOrientation;
 		}
 
-		glm::quat yawQuad = glm::rotate(rotation, glm::radians(-yaw), up);
-		if (glm::angle(orientation * yawQuad, orientation) < glm::radians(85.0f)) {
-			rotation = yawQuad;
-		}
+		orientation = glm::rotate(orientation, glm::radians(-pitch), up);
 
 		// Apply to the camera matrix
-		cameraNode->matrix = glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation);
+		cameraNode->matrix = glm::lookAt(position, position + orientation, up);
 		model->updateTreeFrom(cameraNode, glm::mat4(1.0f));
-
 	}
 	else if (ImGui::IsMouseReleased(ImGuiMouseButton_Right)) {
 		firstClick = true;
@@ -103,6 +100,9 @@ bool GUI::input(Model* model) {
 bool GUI::displayGizmo(Model* model)
 {
 	if (!model)
+		return false;
+
+	if (model->selectedNodeId == 0)
 		return false;
 
 	bool hasChanged = false;
@@ -142,7 +142,7 @@ bool GUI::displayGizmo(Model* model)
 
 	if (hasChanged) {
 		selectedNode->rewriteMatrix();
-		model->updateTreeFrom(selectedNode, glm::mat4(1.0f));
+		model->updateTreeFrom(selectedNode, selectedNode->parent->globalMatrix);
 	}
 
 	return hasChanged;
@@ -203,7 +203,7 @@ void GUI::displayNode(Model* model, Node* node) {
 			if (payload_n != 0)
 				model->reparentNode(payload_n, node->id);
 		}
-		model->selectedNodeId = -1;
+		model->selectedNodeId = 0;
 		ImGui::EndDragDropTarget();
 	}
 
@@ -248,8 +248,17 @@ void GUI::displayLight(Model* model) {
 	model->lightFlags[ShadowBiases] = ImGui::SliderFloat("Shadow bias", &light->shadowBias, 0.000001, 0.00001, "%.6f");
 	ImGui::Checkbox("Display shadowmap", &showShadowMap);
 
+	bool changeProjection = false;
 	switch (node->light->getType()) { // Delete this methods, and put the code here
 		case LIGHT_TYPE::DIRECTIONAL:
+			changeProjection |= ImGui::SliderFloat("Distance", &static_cast<DirectionalLight*>(node->light)->distance, 0.0f, 30.0f);
+			changeProjection |= ImGui::SliderFloat("Size X", &static_cast<OrthographicCamera*>(node->light->camera)->size.x, 5.0f, 25.0f);
+			changeProjection |= ImGui::SliderFloat("Size Y", &static_cast<OrthographicCamera*>(node->light->camera)->size.y, 5.0f, 25.0f);
+			changeProjection |= ImGui::SliderFloat("Near plane", &static_cast<DirectionalLight*>(node->light)->camera->nearPlane, 0.0f, 1.0f);
+			changeProjection |= ImGui::SliderFloat("Far plane", &static_cast<DirectionalLight*>(node->light)->camera->farPlane, 0.0f, 10000.0f);
+			if (changeProjection) {
+				model->updateTreeFrom(node, node->parent->globalMatrix);
+			}
 			break;
 		case LIGHT_TYPE::POINTLIGHT: {
 			PointLight* pointLight = static_cast<PointLight*>(node->light);
@@ -265,7 +274,7 @@ void GUI::displayLight(Model* model) {
 	}
 
 	if (showShadowMap) {
-		GLuint textureID = light->shadowMap->tex->ID;
+		GLuint textureID = light->shadowMap->depthTex->ID;
 		ImGui::Begin("Shadow Map", &showShadowMap);
 		ImTextureID texID = reinterpret_cast<void*>(static_cast<intptr_t>(textureID));
 		ImGui::Image(texID, ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
@@ -291,7 +300,7 @@ void GUI::displayCamera(Model* model) {
 
 void GUI::displayActions(SceneManager* scene) {
 	// Here we select the skybox
-	ImGui::SeparatorText("Load amd save");
+	ImGui::SeparatorText("Load and save");
 	if (ImGui::BeginCombo("Render skybox", scene->mainSkybox.c_str())) {
 		for (auto& skybox : scene->getAllSkyboxes()) {
 			bool is_selected = (scene->mainSkybox == skybox);
@@ -324,16 +333,16 @@ void GUI::displayActions(SceneManager* scene) {
 	if (model) {
 		ImGui::SeparatorText("Add nodes");
 		if (ImGui::Button("Add transform node")) {
-			model->AddBasicNode();
+			model->addTransformNode();
 		}
 		if (ImGui::Button("Add pointlight node")) {
-			model->AddLightNode(LIGHT_TYPE::POINTLIGHT);
+			model->addLightNode(LIGHT_TYPE::POINTLIGHT);
 		}
 		if (ImGui::Button("Add spotlight node")) {
-			model->AddLightNode(LIGHT_TYPE::SPOTLIGHT);
+			model->addLightNode(LIGHT_TYPE::SPOTLIGHT);
 		}
 		if (ImGui::Button("Add directional light node")) {
-			model->AddLightNode(LIGHT_TYPE::DIRECTIONAL);
+			model->addLightNode(LIGHT_TYPE::DIRECTIONAL);
 		}
 		if (ImGui::Button("Update model")) {
 			model->save();
@@ -341,7 +350,7 @@ void GUI::displayActions(SceneManager* scene) {
 	}
 }
 
-void GUI::displayRender(Model* model) {
+void GUI::displayRender(Model* model, Renderer* renderer) {
 	if (!model) return;
 
 	ImGui::SeparatorText("Render");
@@ -349,6 +358,26 @@ void GUI::displayRender(Model* model) {
 	model->hasAmbientColorChanged = ImGui::ColorEdit3("Ambient color", &model->ambientColor[0]);
 	model->hasShadowDarknessChanged = ImGui::SliderFloat("Shadow darkness", &model->shadowDarkness, 0.0f, 1.0f);
 	model->hasReflectionFactorChanged = ImGui::SliderFloat("Reflection factor", &model->reflectionFactor, 0.0f, 1.0f);
+
+	ImGui::SeparatorText("Camera textures");
+	ImGui::Checkbox("Show depth texture", &showShadowMap);
+	ImGui::Checkbox("Show normal texture", &showNormalMap);
+
+	if (showShadowMap) {
+		GLuint textureID = renderer->depthFBO->depthTex->ID;
+		ImGui::Begin("Shadow Map", &showShadowMap);
+		ImTextureID texID = reinterpret_cast<void*>(static_cast<intptr_t>(textureID));
+		ImGui::Image(texID, ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::End();
+	}
+
+	if (showNormalMap) {
+		GLuint textureID = renderer->normalFBO->colorTextures[0]->ID;
+		ImGui::Begin("Normal Map", &showShadowMap);
+		ImTextureID texID = reinterpret_cast<void*>(static_cast<intptr_t>(textureID));
+		ImGui::Image(texID, ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
+		ImGui::End();
+	}
 }
 
 void GUI::logic(SceneManager* scene, Renderer* renderer)
@@ -361,11 +390,11 @@ void GUI::logic(SceneManager* scene, Renderer* renderer)
 	{
 		if (ImGui::BeginTabItem("Scene"))
 		{
-			if (ImGui::CollapsingHeader("Tree")) {
+			if (ImGui::CollapsingHeader("Tree") && model) {
 				displayNode(model, model->root.get());
 			}
 
-			if (ImGui::CollapsingHeader("Node properties")) {
+			if (ImGui::CollapsingHeader("Node properties") && model) {
 				ImGui::SeparatorText("Transform");
 
 				displayGizmo(model);
@@ -374,8 +403,8 @@ void GUI::logic(SceneManager* scene, Renderer* renderer)
 				displayCamera(model);
 			}
 
-			if (ImGui::CollapsingHeader("Render properties")) {
-				displayRender(model);
+			if (ImGui::CollapsingHeader("Render properties") && model) {
+				displayRender(model, renderer);
 			}
 			ImGui::EndTabItem();
 		}
@@ -386,12 +415,7 @@ void GUI::logic(SceneManager* scene, Renderer* renderer)
 		}
 		if (ImGui::BeginTabItem("FX"))
 		{
-			// Checkbox if the aberration is applied
-			ImGui::SeparatorText("Tonemapper");
-			ImGui::Checkbox("Aberration", &renderer->postpo->isToneMappingApplied);
-			if (renderer->postpo->isToneMappingApplied) {
-				ImGui::SliderFloat("Aberration factor", &renderer->postpo->exposure, 0.0f, 4.0f);
-			}
+			displayFX(renderer);
 			ImGui::EndTabItem();
 		}
 		ImGui::EndTabBar();
@@ -400,6 +424,56 @@ void GUI::logic(SceneManager* scene, Renderer* renderer)
 	ImGui::End();
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void GUI::displayFX(Renderer* renderer) {
+	FXQuad* fx = renderer->FXpipeline.get();
+	filterFX(fx);
+}
+
+void GUI::filterFX(FXQuad* fx) {
+	if (!fx)
+		return;
+
+	switch (fx->getType()) {
+		case FX_TONEMAP:
+			displayFXTonemap(static_cast<FXTonemap*>(fx));
+			break;
+		case FX_ABERRATION:
+			displayFXAberration(static_cast<FXAberration*>(fx));
+			break;
+		case FX_MSAA:
+			filterFX(fx->nextFX.get());
+			break;
+	}
+}
+
+void GUI::displayFXAberration(FXAberration* fx) {
+	if (!fx)
+		return;
+
+	ImGui::SeparatorText("Aberration");
+	ImGui::Checkbox("Apply aberration", &fx->isAberrationApplied);
+	if (fx->isAberrationApplied) {
+		ImGui::SliderFloat("Aberration factor", &fx->aberration, 0.0f, 0.2f);
+	}
+
+	if (fx->nextFX)
+		filterFX(fx->nextFX.get());
+}
+
+void GUI::displayFXTonemap(FXTonemap* fx) {
+	if (!fx)
+		return;
+
+	ImGui::SeparatorText("Tonemapper");
+	ImGui::Checkbox("Apply tonemapper", &fx->isToneMappingApplied);
+	if (fx->isToneMappingApplied) {
+		ImGui::SliderFloat("Exposure", &fx->exposure, 0.0f, 4.0f);
+	}
+
+	if (fx->nextFX)
+		filterFX(fx->nextFX.get());
 }
 
 GUI::~GUI()

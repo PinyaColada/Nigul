@@ -1,23 +1,23 @@
 #include "Mesh.h"
 
-Mesh::Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices, Material* material)
+Primitive::Primitive(std::vector<Vertex>& vertices, std::vector<GLuint>& indices, Material* material)
 {
-	Mesh::vertices = vertices;
-	Mesh::indices = indices;
-	Mesh::material = material;
+	Primitive::vertices = vertices;
+	Primitive::indices = indices;
+	Primitive::material = material;
 
-	VAO.Bind();
+	vao.bind();
 	// Generates Vertex Buffer Object and links it to vertices
 	VBO VBO(vertices);
 	// Generates Element Buffer Object and links it to indices
 	EBO EBO(indices);
 	// Links VBO attributes such as coordinates and colors to VAO
-	VAO.LinkAttrib(VBO, 0, 3, GL_FLOAT, sizeof(Vertex), (void*)0);
-	VAO.LinkAttrib(VBO, 1, 3, GL_FLOAT, sizeof(Vertex), (void*)(3 * sizeof(float)));
-	VAO.LinkAttrib(VBO, 2, 3, GL_FLOAT, sizeof(Vertex), (void*)(6 * sizeof(float)));
-	VAO.LinkAttrib(VBO, 3, 2, GL_FLOAT, sizeof(Vertex), (void*)(9 * sizeof(float)));
+	vao.linkAttrib(VBO, 0, 3, GL_FLOAT, sizeof(Vertex), (void*)0);
+	vao.linkAttrib(VBO, 1, 3, GL_FLOAT, sizeof(Vertex), (void*)(3 * sizeof(float)));
+	vao.linkAttrib(VBO, 2, 3, GL_FLOAT, sizeof(Vertex), (void*)(6 * sizeof(float)));
+	vao.linkAttrib(VBO, 3, 2, GL_FLOAT, sizeof(Vertex), (void*)(9 * sizeof(float)));
 	// Unbind all to prevent accidentally modifying them
-	VAO.Unbind();
+	vao.unbind();
 	VBO.Unbind();
 	EBO.Unbind();
 }

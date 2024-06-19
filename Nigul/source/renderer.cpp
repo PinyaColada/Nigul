@@ -4,8 +4,16 @@ Renderer::Renderer(int width, int height) {
 	shaderMap["default"] = std::make_unique<Shader>("default.vert", "default.frag");
 	shaderMap["skybox"] = std::make_unique<Shader>("skybox.vert", "skybox.frag");
 	shaderMap["shadow"] = std::make_unique<Shader>("shadow.vert", "shadow.frag");
+	shaderMap["normal"] = std::make_unique<Shader>("normal.vert", "normal.frag");
 
-	postpo = std::make_unique<FXQuad>(width, height);
+	normalFBO = std::make_unique<FBO>(width, height, 100, FBO_ONE_COLOR);
+	depthFBO = std::make_unique<FBO>(width, height, 101, FBO_DEPTH);
+
+	quadSsao = std::make_unique<FXSsao>(width, height, 64, 0.5f, true);
+
+	FXpipeline = std::make_unique<FXMsaa>(width, height);
+	FXpipeline->nextFX = std::make_unique<FXAberration>(width, height); 
+	FXpipeline->nextFX->nextFX = std::make_unique<FXTonemap>(width, height);
 }
 
 void Renderer::render(Model* model, Skybox* skybox) {
@@ -15,22 +23,26 @@ void Renderer::render(Model* model, Skybox* skybox) {
 	Camera* camera = model->getMainCamera();
 	Shader* defaultShader = shaderMap["default"].get();
 	Shader* skyboxShader = shaderMap["skybox"].get();
-	FXQuad* FX = this->postpo.get();
+	FXQuad* MSAAFX = FXpipeline.get();
 
 	renderShadowMap(model);
 	setAllUniforms(model, skybox, defaultShader);
+	
+	MSAAFX->fbo->bind();
 
-	FX->fbo->bind();
-
-	glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
+	glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.w);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	renderModel(model, defaultShader, camera);
 	renderSkybox(skybox, skyboxShader, camera);
 
-	FX->fbo->unbind();
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, MSAAFX->fbo->ID);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, FXpipeline->nextFX->fbo->ID);
+	glBlitFramebuffer(0, 0, MSAAFX->width, MSAAFX->height, 0, 0, MSAAFX->width, MSAAFX->height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
-	render(FX);
+	MSAAFX->fbo->unbind();
+
+	render(FXpipeline->nextFX.get());
 }
 
 void Renderer::renderModel(Model* model, Shader* shader, Camera* camera) {
@@ -43,47 +55,66 @@ void Renderer::renderModel(Model* model, Shader* shader, Camera* camera) {
 
 void Renderer::render(renderCall call) {
 	call.shader->activate();
-	call.mesh->VAO.Bind();
 
-	if (call.mesh->material) {
-		call.mesh->material->bind(call.shader);
-	}
+	// Draw all primitives in the mesh
+	for (auto& primitive: call.mesh->primitives) {
+		primitive.vao.bind(); // Bind the vao of the primitive
 
-	if (call.camera) {
-		call.shader->setVec3("camPos", call.camera->getPosition());
-		call.shader->setMat4("camMatrix", call.camera->cameraMatrix);
-	}
-
-	call.shader->setMat4("model", call.matrix);
-
-	if (call.mesh->material) {
-		if (call.mesh->material->doubleSided) {
-			glDisable(GL_CULL_FACE);
+		if (primitive.material) { // If the primitive has a material, bind it too
+			primitive.material->bind(call.shader);
 		}
-		if (call.mesh->material->alphaMode == BLEND_MODE) {
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		if (call.camera) { // If the call has a camera, set the camera uniforms
+			call.shader->setVec3("camPos", call.camera->viewMatrix[3]);
+			call.shader->setMat4("camMatrix", call.camera->cameraMatrix);
 		}
-	}
 
-	glEnable(GL_DEPTH_TEST); 
-	glDepthFunc(GL_LESS);
+		call.shader->setMat4("model", call.matrix);
 
-	glDrawElements(GL_TRIANGLES, call.mesh->indices.size(), GL_UNSIGNED_INT, 0);
-
-	if (call.mesh->material) {
-		if (call.mesh->material->doubleSided) {
-			glEnable(GL_CULL_FACE);
+		if (primitive.material) {
+			if (primitive.material->doubleSided) {
+				glDisable(GL_CULL_FACE);
+			}
+			if (primitive.material->alphaMode == BLEND_MODE) {
+				glEnable(GL_BLEND);
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			}
 		}
-		if (call.mesh->material->alphaMode == BLEND_MODE) {
-			glDisable(GL_BLEND);
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LESS);
+
+		glDrawElements(GL_TRIANGLES, primitive.indices.size(), GL_UNSIGNED_INT, 0);
+
+		if (primitive.material) {
+			if (primitive.material->doubleSided) {
+				glEnable(GL_CULL_FACE);
+			}
+			if (primitive.material->alphaMode == BLEND_MODE) {
+				glDisable(GL_BLEND);
+			}
 		}
 	}
 }
 
 void Renderer::render(FXQuad* fxQuad) {
 	fxQuad->passUniforms();
-	fxQuad->toViewport();
+
+	if (fxQuad->nextFX) {
+		fxQuad->nextFX->fbo->bind();
+
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.w);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		fxQuad->toViewport();
+
+		fxQuad->nextFX->fbo->unbind();
+
+		render(fxQuad->nextFX.get());
+	}
+	else {
+		fxQuad->toViewport();
+	}
 }
 
 std::vector<renderCall> Renderer::getRenderCalls(Node* node, Shader* shader, Camera* camera) {
@@ -110,7 +141,6 @@ void Renderer::renderSkybox(Skybox* skybox, Shader* shader, Camera* camera) {
 
 		glm::mat4 view = glm::mat4(glm::mat3(camera->viewMatrix));
 
-		shader->setMat4("view", camera->viewMatrix);
 		shader->setMat4("view", view);
 		shader->setMat4("projection", camera->projectionMatrix);
 
@@ -146,6 +176,19 @@ void Renderer::setLightPositionsUniform(Shader* shader, Model* model) {
 	shader->activate();
 	shader->setVecs3("lightPositions", lightPositions, MAX_LIGHTS);
 	model->lightFlags[Positions] = false;
+}
+
+void Renderer::setLightEnablingUniform(Shader* shader, Model* model) {
+	if (!model->lightFlags[enablings])
+		return;
+	int lightEnablings[MAX_LIGHTS];
+	for (int i = 0; i < model->lodLight.size(); i++) {
+		auto light = model->lodLight[i].get();
+		lightEnablings[i] = light->enabled;
+	}
+	shader->activate();
+	shader->setInts("lightEnablings", lightEnablings, MAX_LIGHTS);
+	model->lightFlags[enablings] = false;
 }
 
 void Renderer::setLightTypesUniform(Shader* shader, Model* model) {
@@ -314,7 +357,7 @@ void Renderer::setLightShadowMapSamplesUniform(Shader* shader, Model* model) {
 	shader->setInts("lightShadowMapSamples", lightShadowMapSamples, MAX_LIGHTS);
 	for (int i = 0; i < model->lodLight.size(); i++) {
 		auto light = model->lodLight[i].get();
-		light->shadowMap->tex->bind();
+		light->shadowMap->depthTex->bind();
 	}
 	model->lightFlags[ShadowMapSamples] = false;
 }
@@ -363,9 +406,22 @@ void Renderer::setSkyboxUniforms(Shader* shader, Model* model, Skybox* skybox) {
 	model->hasSkyboxChanged = false;
 }
 
+void Renderer::setDepthCameraUniform(Shader* shader, Model* model) {
+	shader->activate();
+	shader->setInt("depthCamera", depthFBO->depthTex->unit);
+	depthFBO->depthTex->bind();
+}
+
+void Renderer::setNormalCameraUniform(Shader* shader, Model* model) {
+	shader->activate();
+	shader->setInt("normalCamera", normalFBO->colorTextures[0]->unit);
+	normalFBO->colorTextures[0]->bind();
+}
+
 void Renderer::setAllUniforms(Model* model, Skybox* skybox, Shader* shader) {
 	setLightColorsUniform(shader, model);
 	setLightPositionsUniform(shader, model);
+	setLightEnablingUniform(shader, model);
 	setLightTypesUniform(shader, model);
 	setLightIntensitiesUniform(shader, model);
 	setLightRangesUniform(shader, model);
@@ -385,12 +441,41 @@ void Renderer::setAllUniforms(Model* model, Skybox* skybox, Shader* shader) {
 }
 
 void Renderer::renderShadowMap(Model* model) {
+	if (isSsaoEnabled) {
+		// We render the scene depth to a texture
+		glEnable(GL_DEPTH_TEST);
+
+		depthFBO->bind();
+
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		renderModel(model, shaderMap["shadow"].get(), model->getMainCamera());
+
+		depthFBO->unbind();
+
+		// We render the scene normals to a texture
+
+		normalFBO->bind();
+
+		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.w);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		renderModel(model, shaderMap["normal"].get(), model->getMainCamera());
+
+		normalFBO->unbind();
+
+		quadSsao->passUniforms(model->getMainCamera(), depthFBO.get(), normalFBO.get());
+	}
+
 	if (!model->lightFlags[ProjectionMatrices])
 		return;
 
 	for (auto& light : model->lodLight) {
 		if (light->getType() != DIRECTIONAL)
-			return;
+			continue;
+
+		if (!light->enabled)
+			continue;
 
 		glEnable(GL_DEPTH_TEST);
 

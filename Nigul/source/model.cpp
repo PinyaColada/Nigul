@@ -74,6 +74,7 @@ void Model::load()
 	loadMeshes(); // Load all meshes
 	loadLights(); // Load all lights
 	loadCameras(); // Load all cameras
+	loadModelProperties(); // Load the model properties 
 
 	// Traverse all nodes
 	auto rootNodes = findRootNodes();
@@ -83,7 +84,7 @@ void Model::load()
 
 	// If there is no camera, we add a default one
 	if (nodeWithCamera == -1)
-		AddCameraNode();
+		addMainCameraNode();
 
 	// We update cameras and lights
 	updateTreeFrom(root.get(), glm::mat4(1.0f));
@@ -224,8 +225,8 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 parentMatrix, Node* pa
 		newNode->light = newLight;
 	} 
 	
-	if (node.camera != -1 || node.name == "Camera") {
-		Camera* newCamera = lodCamera[node.camera != -1 ? node.camera : 0].get();
+	if (node.camera != -1) {
+		Camera* newCamera = lodCamera[node.camera].get();
 		newCamera->updateView(newNode->globalMatrix);
 		newCamera->updateProjection();
 		newCamera->updateMatrix();
@@ -235,7 +236,7 @@ void Model::traverseNode(unsigned int nextNode, glm::mat4 parentMatrix, Node* pa
 		else {
 			newNode->camera = newCamera; // Else it goes to the node
 			nodeWithCamera = numNodes;
-			mainCameraId = node.camera != -1 ? node.camera : 0;
+			mainCameraId = node.camera;
 		}
 	}
 
@@ -294,6 +295,26 @@ std::vector<GLuint> Model::getIndices(int accessorIndex)
 	return indices;
 }
 
+void Model::loadModelProperties() {
+	if (model.extras.Has("Ambient color")) {
+		auto ambientColorValue = model.extras.Get("Ambient color").Get<tinygltf::Value::Array>();
+		ambientColor = glm::vec3(ambientColorValue[0].GetNumberAsDouble(), ambientColorValue[1].GetNumberAsDouble(), ambientColorValue[2].GetNumberAsDouble());
+	}
+
+	if (model.extras.Has("Shadow darkness")) {
+		shadowDarkness = model.extras.Get("Shadow darkness").GetNumberAsDouble();
+	}
+
+	if (model.extras.Has("Reflection factor")) {
+		reflectionFactor = model.extras.Get("Reflection factor").GetNumberAsDouble();
+	}
+
+	if (model.extras.Has("Ambient intensity")) {
+		ambientLight = model.extras.Get("Ambient intensity").GetNumberAsDouble();
+	}
+
+}
+
 void Model::loadCameras() {
 	// Preallocate space for lodCam
 	lodCamera.reserve(model.cameras.size());
@@ -324,11 +345,6 @@ void Model::loadCameras() {
 
 		lodCamera.push_back(std::move(camera));
 	}
-
-	if (lodCamera.size() == 0) {
-		lodCamera.push_back(std::make_unique<PerspectiveCamera>());
-		mainCameraId = 0;
-	}
 }
 
 void Model::loadLights()
@@ -352,7 +368,9 @@ void Model::loadLights()
 		}
 		else if (model.lights[i].type == "directional") {
 			auto directionalLight = std::make_unique<DirectionalLight>();
-			directionalLight->shadowMap = std::make_unique<FBO>(8192, 8192, lodTex.size() + i, true);
+			directionalLight->shadowMap = std::make_unique<FBO>(8192, 8192, lodTex.size() + i, FBO_DEPTH);
+			if (model.lights[i].extras.Has("distance"))
+				directionalLight->distance = model.lights[i].extras.Get("distance").GetNumberAsDouble();
 			light = std::move(directionalLight);
 		}
 		else {
@@ -376,10 +394,10 @@ void Model::loadTextures()
 	// Preallocate space for lodTex
 	lodTex.resize(model.images.size());
 
-	for (int i = 0; i < model.images.size(); i++)
+	for (int i = 0; i < model.textures.size(); i++) // TODO: Use textures of the gltf instead of images
 	{
 		// URI of current texture
-		std::filesystem::path texPath = model.images[i].uri;
+		std::filesystem::path texPath = model.images[model.textures[i].source].uri;
 
 		// Construct the full path to the texture
 		std::filesystem::path fullPath = filePath.parent_path() / texPath;
@@ -387,6 +405,8 @@ void Model::loadTextures()
 		// Load texture and add it to lodTex
 		lodTex[i] = std::make_unique<Texture>(fullPath.string().c_str(), (GLuint)i);
 	}
+
+	std::cout << "Loaded " << model.images.size() << " textures." << std::endl;
 }
 
 void Model::loadMaterials() {
@@ -427,17 +447,11 @@ void Model::loadMaterials() {
 			int textureIndex = mat.pbrMetallicRoughness.baseColorTexture.index;
 			material->pbrMetallicRoughness.baseColorTexture = lodTex[textureIndex].get(); // Load the selected slot
 		}
-		else {
-			material->pbrMetallicRoughness.baseColorTexture = lodTex.back().get(); // otherwise use the last texture (black texture)
-		}
 
 		// Load and assign metallic-roughness texture
 		if (mat.pbrMetallicRoughness.metallicRoughnessTexture.index >= 0) { // If there is a metallicRoughness texture
 			int textureIndex = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
 			material->pbrMetallicRoughness.metallicRoughness = lodTex[textureIndex].get(); // Load the selected slot
-		}
-		else {
-			material->pbrMetallicRoughness.metallicRoughness = lodTex.back().get(); // otherwise use the last texture (black texture)
 		}
 
 		if (mat.normalTexture.index >= 0) { // If there is a normal texture
@@ -458,6 +472,8 @@ void Model::loadMaterials() {
 		// Add the shared_ptr<Material> to the lodMat vector
 		lodMat.push_back(std::move(material));
 	}
+
+	std::cout << "Number of materials: " << lodMat.size() << std::endl;
 }
 
 void Model::loadMeshes()
@@ -465,41 +481,47 @@ void Model::loadMeshes()
 	// Go through all the meshes in the gltfModel
 	for (size_t i = 0; i < model.meshes.size(); i++) {
 		const auto& mesh = model.meshes[i];
-		const auto& primitive = mesh.primitives[0];
+		std::unique_ptr<Mesh> meshPtr = std::make_unique<Mesh>();
 
-		// Get all accessor indices
-		unsigned int posAccInd = primitive.attributes.find("POSITION")->second;
-		unsigned int normalAccInd = primitive.attributes.find("NORMAL")->second;
+		// Iterate over all primitives in the mesh
+		for (const auto& primitive : mesh.primitives) {
+			// Get all accessor indices
+			unsigned int posAccInd = primitive.attributes.find("POSITION")->second;
+			unsigned int normalAccInd = primitive.attributes.find("NORMAL")->second;
 
-		std::vector<glm::vec3> positions = getVec3(posAccInd);
-		std::vector<glm::vec3> normals = getVec3(normalAccInd);
-		std::vector<glm::vec2> texUVs;
+			std::vector<glm::vec3> positions = getVec3(posAccInd);
+			std::vector<glm::vec3> normals = getVec3(normalAccInd);
+			std::vector<glm::vec2> texUVs;
 
-		std::vector<Texture> textures;
+			// Check if TEXCOORD_0 exists
+			auto texCoordIt = primitive.attributes.find("TEXCOORD_0");
+			if (texCoordIt != primitive.attributes.end()) {
+				unsigned int texAccInd = texCoordIt->second;
+				texUVs = getVec2(texAccInd);
+			}
+			else {
+				// Fill with zeros if TEXCOORD_0 does not exist
+				texUVs.assign(positions.size(), glm::vec2(0.0f, 0.0f));
+			}
+			int indexMaterial = primitive.material;
 
-		// Check if TEXCOORD_0 exists
-		auto texCoordIt = primitive.attributes.find("TEXCOORD_0");
-		if (texCoordIt != primitive.attributes.end()) {
-			unsigned int texAccInd = texCoordIt->second;
-			texUVs = getVec2(texAccInd);
+			// Get indices
+			unsigned int indAccInd = primitive.indices;
+			std::vector<GLuint> indices = getIndices(indAccInd);
+
+			// Combine the vertices, indices, and textures into a mesh
+			std::vector<Vertex> vertices = assembleVertices(positions, normals, texUVs);
+			
+
+			// Add the mesh to the lodMesh vector
+			Primitive prim = Primitive(vertices, indices, lodMat[indexMaterial].get());
+			meshPtr->primitives.push_back(prim);
 		}
-		else {
-			// Fill with zeros if TEXCOORD_0 does not exist
-			texUVs.assign(positions.size(), glm::vec2(0.0f, 0.0f));
-		}
-		int indexMaterial = primitive.material;
 
-		// Get indices
-		unsigned int indAccInd = primitive.indices;
-		std::vector<GLuint> indices = getIndices(indAccInd);
-
-		// Combine the vertices, indices, and textures into a mesh
-		std::vector<Vertex> vertices = assembleVertices(positions, normals, texUVs);
-		auto meshPtr = std::make_unique<Mesh>(vertices, indices, lodMat[indexMaterial].get());
-
-		// Add the mesh to the lodMesh vector
 		lodMesh.push_back(std::move(meshPtr));
 	}
+
+	std::cout << "Number of meshes: " << lodMesh.size() << std::endl;
 }
 
 std::vector<Vertex> Model::assembleVertices(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals, const std::vector<glm::vec2>& texUVs)
@@ -620,7 +642,18 @@ void Model::deleteNode(int id) {
 
 	if (targetNode->light) {
 		int lightIndex = targetNode->light->index;
-		lodLight.erase(lodLight.begin() + lightIndex);
+		lodLight[lightIndex]->camera->enabled = false;
+		lodLight[lightIndex]->enabled = false;
+		lightFlags[enablings] = true;
+	}
+	else if (targetNode->camera) {
+		int cameraIndex = targetNode->camera->index;
+		if (cameraIndex != mainCameraId)
+			lodCamera.erase(lodCamera.begin() + cameraIndex);
+		else {
+			std::cerr << "Cannot delete the main camera." << std::endl;
+			return;
+		}
 	}
 
 	// Remove the node from its parent's children list or from the root nodes
@@ -630,7 +663,7 @@ void Model::deleteNode(int id) {
 
 }
 
-void Model::AddBasicNode() {
+void Model::addTransformNode() {
 	Node* newNode = new Node();
 	newNode->name = "Node";
 	newNode->id = numNodes + 1;
@@ -639,7 +672,7 @@ void Model::AddBasicNode() {
 	numNodes++;
 }
 
-void Model::AddLightNode(LIGHT_TYPE lightType) {
+void Model::addLightNode(LIGHT_TYPE lightType) {
 	if (lodLight.size() > MAX_LIGHTS)
 	{
 		std::cerr << "Maximum number of lights reached." << std::endl;
@@ -662,6 +695,7 @@ void Model::AddLightNode(LIGHT_TYPE lightType) {
 		newNode->name = "Directional Light";
 		newLight = std::make_unique<DirectionalLight>();
 		lodCamera.push_back(std::make_unique<OrthographicCamera>());
+		lodCamera.back()->index = lodCamera.size() - 1; // Set the index for the camera
 		newLight->camera = lodCamera.back().get();
 		break;
 	default:
@@ -669,7 +703,7 @@ void Model::AddLightNode(LIGHT_TYPE lightType) {
 		return;
 	}
 
-	newLight->shadowMap = std::make_unique<FBO>(8192, 8192, lodTex.size() + lodLight.size(), true);
+	newLight->shadowMap = std::make_unique<FBO>(8192, 8192, lodTex.size() + lodLight.size(), FBO_DEPTH);
 	newNode->id = numNodes;
 	newNode->parent = root.get();
 	newLight->index = lodLight.size();
@@ -680,13 +714,15 @@ void Model::AddLightNode(LIGHT_TYPE lightType) {
 	numNodes++;
 }
 
-void Model::AddCameraNode() {
+void Model::addMainCameraNode() {
+	mainCameraId = lodCamera.size();
+	lodCamera.push_back(std::make_unique<PerspectiveCamera>());
 	Node* newNode = new Node();
 	newNode->name = "Camera";
 	newNode->id = numNodes;
 	nodeWithCamera = numNodes;
 	newNode->parent = root.get();
-	newNode->camera = lodCamera[0].get();
+	newNode->camera = lodCamera.back().get();
 	newNode->camera->updateView(newNode->globalMatrix);
 	newNode->camera->updateProjection();
 	newNode->camera->updateMatrix();
@@ -716,9 +752,62 @@ void Model::save() {
 	outputModel.lights.clear();
 	outputModel.cameras.clear();
 
+	// Save the model scene properties
+	tinygltf::Value::Object modelExtras;
+	modelExtras["Ambient color"] = tinygltf::Value({ tinygltf::Value(ambientColor.r), tinygltf::Value(ambientColor.g), tinygltf::Value(ambientColor.b) });
+	modelExtras["Shadow darkness"] = tinygltf::Value(shadowDarkness);
+	modelExtras["Reflection factor"] = tinygltf::Value(reflectionFactor);
+	modelExtras["Ambient intensity"] = tinygltf::Value(ambientLight);
+
+	outputModel.extras = tinygltf::Value(modelExtras);
+
+	// Now we save the lights
+	std::vector<Light*> enabledLights;
+	std::vector<Camera*> enabledCameras;
+	for (auto& light : lodLight) {
+		tinygltf::Light gltfLight;
+		tinygltf::Value::Object LightExtras; // To add extra data to the light
+
+		if (!light->enabled) { // If the light is not enabled, we wont save it
+			continue;
+		}
+		else {
+			enabledLights.push_back(light.get());
+		}
+
+		if (light->getType() == POINTLIGHT) {
+			gltfLight.type = "point";
+			auto pointLight = static_cast<PointLight*>(light.get());
+			LightExtras["Attenuation"] = tinygltf::Value(pointLight->attenuation);
+		}
+		else if (light->getType() == SPOTLIGHT) {
+			gltfLight.type = "spot";
+			auto spotLight = static_cast<SpotLight*>(light.get());
+			gltfLight.spot.innerConeAngle = spotLight->innerConeAngle;
+			gltfLight.spot.outerConeAngle = spotLight->outerConeAngle;
+		}
+		else if (light->getType() == DIRECTIONAL) {
+			gltfLight.type = "directional";
+			auto directLight = static_cast<DirectionalLight*>(light.get());
+			LightExtras["distance"] = tinygltf::Value(directLight->distance);
+		}
+		gltfLight.color = { light->color.r, light->color.g, light->color.b };
+		gltfLight.intensity = light->intensity;
+		gltfLight.range = light->range;
+		gltfLight.extras = tinygltf::Value(LightExtras);
+		outputModel.lights.push_back(gltfLight);
+	}
+
 	// Now we load the cameras
 	for (auto& camera : lodCamera) {
 		tinygltf::Camera gltfCamera;
+		if (!camera->enabled) { // If the camera is not enabled, we wont save it
+			continue;
+		}
+		else {
+			enabledCameras.push_back(camera.get());
+		}
+
 		if (camera->getType() == PERSPECTIVE) {
 			auto perspectiveCamera = static_cast<PerspectiveCamera*>(camera.get());
 			gltfCamera.type = "perspective";
@@ -736,27 +825,6 @@ void Model::save() {
 			gltfCamera.orthographic.zfar = orthoCamera->farPlane;
 		}
 		outputModel.cameras.push_back(gltfCamera);
-	}
-
-	// Now we load the lights
-	for (auto& light : lodLight) {
-		tinygltf::Light gltfLight;
-		if (light->getType() == POINTLIGHT) {
-			gltfLight.type = "point";
-		}
-		else if (light->getType() == SPOTLIGHT) {
-			gltfLight.type = "spot";
-			auto spotLight = static_cast<SpotLight*>(light.get());
-			gltfLight.spot.innerConeAngle = spotLight->innerConeAngle;
-			gltfLight.spot.outerConeAngle = spotLight->outerConeAngle;
-		}
-		else if (light->getType() == DIRECTIONAL) {
-			gltfLight.type = "directional";
-		}
-		gltfLight.color = { light->color.r, light->color.g, light->color.b };
-		gltfLight.intensity = light->intensity;
-		gltfLight.range = light->range;
-		outputModel.lights.push_back(gltfLight);
 	}
 
 	// Now we load the nodes
@@ -782,35 +850,29 @@ void Model::save() {
 		}
 
 		// If the node has a light
-		if (node->light) {
-			int lightIndex;
-			for (int i = 0; i < lodLight.size(); i++) {
-				if (node->light == lodLight[i].get()) {
-					lightIndex = i;
+		if (node->light && node->light->enabled) {
+			for (int i = 0; i < enabledLights.size(); i++) {
+				if (node->light == enabledLights[i]) {
+					gltfNode.light = i;
 					break;
 				}
 			}
-			gltfNode.light = lightIndex;
 
-			int lightCameraIndex;
-			for (int i = 0; i < lodCamera.size(); i++) {
-				if (node->light->camera == lodCamera[i].get()) {
-					lightCameraIndex = i;
+			for (int i = 0; i < enabledCameras.size(); i++) {
+				if (node->light->camera == enabledCameras[i]) {
+					gltfNode.camera = i;
 					break;
 				}
 			}
-			gltfNode.camera = lightCameraIndex;
 		}
 
 		if (node->camera) {
-			int cameraIndex;
-			for (int i = 0; i < lodCamera.size(); i++) {
-				if (node->camera == lodCamera[i].get()) {
-					cameraIndex = i;
+			for (int i = 0; i < enabledCameras.size(); i++) {
+				if (node->camera == enabledCameras[i]) {
+					gltfNode.camera = i;
 					break;
 				}
 			}
-			gltfNode.camera = cameraIndex;
 		}
 
 		for (auto& child : node->children) {
@@ -821,9 +883,10 @@ void Model::save() {
 		if (node->name != "root")
 			outputModel.nodes.push_back(gltfNode);
 	}
+	
 
 	// Save the modified model to a file
-	bool success = gltfWriter.WriteGltfSceneToFile(&outputModel, "aux.gltf", false, false, true, false);
+	bool success = gltfWriter.WriteGltfSceneToFile(&outputModel, file, false, false, true, false);
 	if (!success) {
 		std::cerr << "Failed to save the model!" << std::endl;
 	}

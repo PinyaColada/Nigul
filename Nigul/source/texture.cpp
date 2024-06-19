@@ -84,12 +84,11 @@ std::unique_ptr<Texture> Texture::createShadowMapTexture(int width, int height, 
 	tex->height = height;
 
 	glGenTextures(1, &tex->ID);
-	glActiveTexture(GL_TEXTURE0 + tex->unit);
 	glBindTexture(GL_TEXTURE_2D, tex->ID);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
@@ -111,7 +110,6 @@ std::unique_ptr<Texture> Texture::createColorTexture(int width, int height, GLui
 	tex->height = height;
 
 	glGenTextures(1, &tex->ID);
-	glActiveTexture(GL_TEXTURE0 + tex->unit);
 	glBindTexture(GL_TEXTURE_2D, tex->ID);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, NULL);
@@ -119,6 +117,25 @@ std::unique_ptr<Texture> Texture::createColorTexture(int width, int height, GLui
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	return tex;
+}
+
+std::unique_ptr<Texture> Texture::createMultisampleTexture(int width, int height, GLuint slot) {
+	std::unique_ptr<Texture> tex = std::make_unique<Texture>();
+	tex->unit = slot;
+	tex->width = width;
+	tex->height = height;
+	tex->isMultisampled = true;
+
+	glGenTextures(1, &tex->ID);
+	glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex->ID);
+
+	glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, SAMPLES, GL_RGBA32F, width, height, GL_TRUE);
+	glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
 
 	return tex;
 }
@@ -136,5 +153,8 @@ void Texture::texUnit(Shader* shader, const char* uniform)
 void Texture::bind()
 {
 	glActiveTexture(GL_TEXTURE0 + unit);
-	glBindTexture(GL_TEXTURE_2D, ID);
+	if (isMultisampled)
+		glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, ID);
+	else
+		glBindTexture(GL_TEXTURE_2D, ID);
 }

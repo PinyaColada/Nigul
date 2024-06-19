@@ -9,18 +9,22 @@
 #include "EBO.h"
 #include "Material.h"
 
+struct Primitive
+{
+	std::vector <Vertex> vertices;
+	std::vector <GLuint> indices;
+	Material* material = nullptr;
+
+	VAO vao;
+
+	Primitive(std::vector<Vertex>& vertices, std::vector<GLuint>& indices, Material* material = nullptr);
+};
+
 class Mesh
 {
 public:
-	std::vector<Vertex> vertices;
-	std::vector<GLuint> indices;
-	Material* material = nullptr;
+	std::vector<Primitive> primitives;
 
-	// Store VAO in public so it can be used in the Draw function
-	VAO VAO;
-
-	// Initializes the mesh
 	Mesh() = default;
-	Mesh(std::vector <Vertex>& vertices, std::vector <GLuint>& indices, Material* material = nullptr);
 };
 

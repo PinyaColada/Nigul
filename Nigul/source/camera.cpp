@@ -5,12 +5,8 @@ void Camera::updateMatrix()
 	cameraMatrix = projectionMatrix * viewMatrix;
 }
 
-glm::vec3 Camera::getPosition() const {
-	return glm::inverse(viewMatrix)[3];
-}
-
 void Camera::updateView(const glm::mat4& matrix){
-	viewMatrix = glm::inverse(matrix);
+	viewMatrix = matrix;
 }
 
 void Camera::updateView(const glm::vec3& position, const glm::vec3& target)

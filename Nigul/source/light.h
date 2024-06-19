@@ -15,6 +15,7 @@ enum LIGHT_TYPE {
 class Light {
 public:
 	Light() = default;
+	bool enabled = true;
 
 	glm::vec3 color = glm::vec3(1.0f);
 	float intensity = 1.0;

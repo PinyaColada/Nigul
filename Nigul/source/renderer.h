@@ -15,7 +15,15 @@ struct renderCall {
 class Renderer {
 public:
     std::map<std::string, std::unique_ptr<Shader>> shaderMap;
-    std::unique_ptr<FXQuad> postpo = nullptr;
+    std::unique_ptr<FXQuad> FXpipeline = nullptr;
+
+    glm::vec4 clearColor = glm::vec4(0.36f, 0.256f, 0.274f, 1.0f);
+
+    // Ssao
+    std::unique_ptr<FBO> normalFBO;
+    std::unique_ptr<FBO> depthFBO;
+    std::unique_ptr<FXSsao> quadSsao;
+    bool isSsaoEnabled = true;
 
     Renderer(int width, int height);
 
@@ -42,11 +50,14 @@ public:
     void setLightOuterConeAnglesUniform(Shader* shader, Model* model);
     void setLightCastShadowsUniform(Shader* shader, Model* model);
     void setLightShadowMapSamplesUniform(Shader* shader, Model* model);
+    void setLightEnablingUniform(Shader* shader, Model* model);
     void setAmbientLightUniform(Shader* shader, Model* model);
     void setAmbientColorUniform(Shader* shader, Model* model);
     void setShadowDarknessUniform(Shader* shader, Model* model);
     void setReflectionFactorUniform(Shader* shader, Model* model);
     void setSkyboxUniforms(Shader* shader, Model* model, Skybox* skybox);
+    void setDepthCameraUniform(Shader* shader, Model* model);
+    void setNormalCameraUniform(Shader* shader, Model* model);
 
     void renderShadowMap(Model* model);
 };
