@@ -60,6 +60,8 @@ Nigul includes the following features:
 
 ## Demo
 
+You can see a showcase <a href="https://www.youtube.com/watch?v=m50P2QIQ_yI">here</a>!
+
 <div align="center">
   <img src="https://github.com/yourusername/Nigul/blob/master/demo/GraphicsEngineExample.gif" alt="Graphics Engine Demo">
   <p>exploring the graphics capabilities!</p>
